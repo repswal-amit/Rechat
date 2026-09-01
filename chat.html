@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat - Premium Chat</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        
+        <!-- Sidebar: Contact List + Own Profile + Settings -->
+        <aside class="sidebar">
+            
+            <!-- My Profile Slide-over -->
+            <div class="sidebar-slide" id="my-profile-sidebar">
+                <div class="sidebar-slide-header">
+                    <button class="btn-icon" id="close-my-profile-btn">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    </button>
+                    <h2>Profile</h2>
+                </div>
+                <div class="sidebar-slide-body">
+                    <div class="profile-avatar-container">
+                        <div class="avatar large" id="my-profile-avatar">?</div>
+                        <label for="profile-pic-upload" class="avatar-edit-overlay">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                        </label>
+                        <input type="file" id="profile-pic-upload" accept="image/*" style="display: none;">
+                    </div>
+                    <form id="profile-form">
+                        <div class="form-group">
+                            <label>Your Name</label>
+                            <input type="text" id="edit-name" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Username</label>
+                            <input type="text" id="edit-username" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>About</label>
+                            <textarea id="edit-bio" class="form-control" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="btn-primary" id="save-profile-btn">Save Changes</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Settings Slide-over -->
+            <div class="sidebar-slide" id="settings-sidebar">
+                <div class="sidebar-slide-header">
+                    <button class="btn-icon" id="close-settings-btn">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    </button>
+                    <h2>Settings</h2>
+                </div>
+                <div class="sidebar-slide-body" style="padding: 0;">
+                    <ul class="settings-menu">
+                        <li id="menu-profile">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                            Profile
+                        </li>
+                        <li id="menu-password">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                            Password Update
+                        </li>
+                        <li id="menu-theme">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                            Dark Mode
+                            <label class="switch" style="margin-left: auto;">
+                                <input type="checkbox" id="theme-toggle" checked>
+                                <span class="slider round"></span>
+                            </label>
+                        </li>
+                        <li class="disabled">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"></path></svg>
+                            App Update <span class="badge">Coming Soon</span>
+                        </li>
+                        <li id="menu-logout" style="color: var(--danger);">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                            Logout
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Password Update Slide-over -->
+            <div class="sidebar-slide" id="password-sidebar">
+                <div class="sidebar-slide-header">
+                    <button class="btn-icon" id="close-password-btn">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    </button>
+                    <h2>Update Password</h2>
+                </div>
+                <div class="sidebar-slide-body">
+                    <form id="password-form">
+                        <div class="form-group">
+                            <label>Current Password</label>
+                            <input type="password" id="current-password" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>New Password</label>
+                            <input type="password" id="new-password" class="form-control" required>
+                        </div>
+                        <button type="submit" class="btn-primary">Save Password</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Contacts Main View -->
+            <div class="sidebar-main" id="sidebar-main">
+                <div class="sidebar-header">
+                    <h2>Messages</h2>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn-icon" id="my-profile-btn" title="My Profile">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        </button>
+                        <button class="btn-icon" id="settings-btn" title="Settings">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="search-bar">
+                    <input type="text" class="search-input" placeholder="Search chats...">
+                </div>
+                <div class="contacts-list" id="contacts-list">
+                    <!-- Contacts will be rendered here dynamically -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="chat-area" id="main-chat-area">
+            <header class="chat-header">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <button class="btn-icon" id="close-chat-btn" style="display: none; width: 36px; height: 36px; border: none; background: transparent;" title="Close Chat">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    </button>
+                    <div class="chat-partner-info" id="chat-partner-info-btn" style="cursor: pointer;" title="View Contact Info">
+                        <div class="avatar online" id="chat-partner-avatar">?</div>
+                        <div class="partner-details">
+                            <h3 id="chat-partner-name">Select a contact</h3>
+                            <span class="partner-status" id="chat-partner-status"></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chat-header-actions" id="chat-header-actions" style="display: none;">
+                    <button class="btn-icon header-action-btn" title="Voice Call">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                    </button>
+                    <button class="btn-icon header-action-btn" title="Video Call">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+                    </button>
+                    <div style="position: relative;">
+                        <button class="btn-icon" id="chat-options-btn" title="Options">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+                        </button>
+                        <div class="dropdown-menu" id="chat-options-menu">
+                            <ul>
+                                <li class="header-action-btn">New Group</li>
+                                <li class="header-action-btn" style="color: var(--danger);">Block</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="chat-messages" id="chat-messages">
+                <!-- Messages will be rendered here dynamically -->
+                <div style="text-align: center; color: var(--text-secondary); margin-top: 2rem;">
+                    Please select a contact from the sidebar to start chatting.
+                </div>
+            </div>
+
+            <div id="edit-banner" style="display: none;">
+                <span>Editing message...</span>
+                <button class="cancel-edit" id="cancel-edit-btn">Cancel</button>
+            </div>
+            <div class="chat-input-area">
+                <button class="btn-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                </button>
+                <div class="chat-input-wrapper">
+                    <input type="text" class="chat-input" placeholder="Type a message...">
+                </div>
+                <button class="btn-send">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+            </div>
+        </main>
+        
+        <!-- Right Sidebar: Contact Info -->
+        <aside class="contact-info-sidebar" id="contact-info-sidebar">
+            <div class="sidebar-slide-header">
+                <button class="btn-icon" id="close-contact-info-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </button>
+                <h2>Contact Info</h2>
+            </div>
+            <div class="sidebar-slide-body" style="text-align: center; padding-top: 2rem;">
+                <div class="avatar large" id="contact-info-avatar" style="margin: 0 auto 1rem;">?</div>
+                <h2 id="contact-info-name" style="font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem;">Name</h2>
+                <p id="contact-info-username" style="color: var(--accent-color); margin-bottom: 2rem;">@username</p>
+                
+                <div style="text-align: left; background: rgba(0,0,0,0.2); padding: 1.5rem; border-radius: 16px;">
+                    <h4 style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 1px;">About</h4>
+                    <p id="contact-info-bio" style="font-size: 1rem; line-height: 1.5;"></p>
+                </div>
+            </div>
+        </aside>
+    </div>
+    
+    <!-- Global Toast Notification -->
+    <div id="toast" class="toast">Coming Soon</div>
+    
+    <script src="js/store.js"></script>
+    <script src="js/profile.js"></script>
+    <script src="js/settings.js"></script>
+    <script src="js/chat.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
