@@ -1,7 +1,10 @@
-// Application Bootstrapper and Multi-Tab Sync
+import { db } from './firebase-config.js';
+import { collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+// Application Bootstrapper and Firebase Sync
 document.addEventListener('DOMContentLoaded', () => {
     
-    // Apply saved theme early (in addition to store.js initial check if any)
+    // Apply saved theme early
     const themeToggle = document.getElementById('theme-toggle');
     if (localStorage.getItem('theme') === 'light') {
         document.body.classList.add('light-mode');
@@ -37,78 +40,90 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- REAL-TIME MULTI-TAB SYNC ---
-    window.addEventListener('storage', (e) => {
-        if (e.key === 'chat_messages' || e.key === 'chat_users') {
+    const currentUser = window.ChatApp.getCurrentUser();
+    if (!currentUser) return; // Only sync if logged in
+
+    // --- FIREBASE REAL-TIME SYNC ---
+
+    // 1. Users Listener
+    const qUsers = query(collection(db, "users"));
+    onSnapshot(qUsers, (snapshot) => {
+        const users = [];
+        snapshot.forEach((doc) => {
+            users.push({ ...doc.data(), id: doc.id });
+        });
+        window.ChatApp._users = users;
+        
+        // Update current user if it changed
+        const latestMe = users.find(u => u.id === currentUser.id);
+        if (latestMe) {
+            window.ChatApp.setCurrentUser(latestMe);
+        }
+        
+        // Update contact info sidebar if open
+        const contactInfoSidebar = document.getElementById('contact-info-sidebar');
+        if (window.ChatApp.activeChatPartner && contactInfoSidebar && contactInfoSidebar.classList.contains('active')) {
+             const latestPartner = users.find(u => u.id === window.ChatApp.activeChatPartner.id);
+             if (latestPartner) {
+                 const contactInfoAvatar = document.getElementById('contact-info-avatar');
+                 const contactInfoName = document.getElementById('contact-info-name');
+                 const contactInfoUsername = document.getElementById('contact-info-username');
+                 const contactInfoBio = document.getElementById('contact-info-bio');
+                 
+                 window.ChatApp.updateAvatarElement(contactInfoAvatar, latestPartner);
+                 if (contactInfoName) contactInfoName.textContent = latestPartner.name;
+                 if (contactInfoUsername) contactInfoUsername.textContent = latestPartner.username || '@username';
+                 if (contactInfoBio) contactInfoBio.textContent = latestPartner.bio || 'No bio available.';
+             }
+         }
+        
+        if (window.ChatApp.renderContacts) window.ChatApp.renderContacts();
+    });
+
+    // 2. Messages Listener
+    let initialLoad = true;
+    const qMessages = query(collection(db, "messages"), orderBy("timestamp", "asc"));
+    
+    onSnapshot(qMessages, (snapshot) => {
+        const messages = [];
+        snapshot.forEach((doc) => {
+            messages.push({ ...doc.data(), id: doc.id });
+        });
+        
+        const oldLength = window.ChatApp._messages.length;
+        window.ChatApp._messages = messages;
+        
+        // Notification logic
+        if (!initialLoad && messages.length > oldLength) {
+            const latestMsg = messages[messages.length - 1];
+            const activePartnerId = window.ChatApp.activeChatPartner ? window.ChatApp.activeChatPartner.id : null;
             
-            if (e.key === 'chat_messages') {
-                try {
-                    const oldMsgs = JSON.parse(e.oldValue || '[]');
-                    const newMsgs = JSON.parse(e.newValue || '[]');
-                    const currentUser = window.ChatApp.getCurrentUser();
+            if (latestMsg.receiverId === currentUser.id && !latestMsg.read) {
+                if (activePartnerId !== latestMsg.senderId || document.hidden) {
+                    playNotificationSound();
                     
-                    if (currentUser && newMsgs.length > oldMsgs.length) {
-                        const latestMsg = newMsgs[newMsgs.length - 1];
-                        const activePartnerId = window.ChatApp.activeChatPartner ? window.ChatApp.activeChatPartner.id : null;
+                    if (window.Notification && Notification.permission === "granted") {
+                        const sender = window.ChatApp._users.find(u => u.id === latestMsg.senderId);
+                        const senderName = sender ? sender.name : 'Someone';
                         
-                        if (latestMsg.receiverId === currentUser.id && !latestMsg.read) {
-                            if (activePartnerId !== latestMsg.senderId || document.hidden) {
-                                playNotificationSound();
-                                
-                                if (window.Notification && Notification.permission === "granted") {
-                                    const sender = window.ChatApp.getAllUsers().find(u => u.id === latestMsg.senderId);
-                                    const senderName = sender ? sender.name : 'Someone';
-                                    
-                                    const n = new Notification(`New message from ${senderName}`, {
-                                        body: latestMsg.text
-                                    });
-                                    n.onclick = () => {
-                                        window.focus();
-                                        n.close();
-                                    };
-                                }
-                            }
-                        }
+                        const n = new Notification(`New message from ${senderName}`, {
+                            body: latestMsg.text
+                        });
+                        n.onclick = () => {
+                            window.focus();
+                            n.close();
+                        };
                     }
-                } catch (err) {
-                    console.error("Notification error", err);
                 }
             }
-
-            if (e.key === 'chat_users') {
-                 const users = window.ChatApp.getAllUsers();
-                 const currentUser = window.ChatApp.getCurrentUser();
-                 const latestMe = users.find(u => u.id === currentUser.id);
-                 if (latestMe) {
-                     window.ChatApp.setCurrentUser(latestMe);
-                 }
-                 
-                 // Update contact info sidebar if open
-                 const contactInfoSidebar = document.getElementById('contact-info-sidebar');
-                 if (window.ChatApp.activeChatPartner && contactInfoSidebar && contactInfoSidebar.classList.contains('active')) {
-                     const latestPartner = users.find(u => u.id === window.ChatApp.activeChatPartner.id);
-                     if (latestPartner) {
-                         const contactInfoAvatar = document.getElementById('contact-info-avatar');
-                         const contactInfoName = document.getElementById('contact-info-name');
-                         const contactInfoUsername = document.getElementById('contact-info-username');
-                         const contactInfoBio = document.getElementById('contact-info-bio');
-                         
-                         window.ChatApp.updateAvatarElement(contactInfoAvatar, latestPartner);
-                         contactInfoName.textContent = latestPartner.name;
-                         contactInfoUsername.textContent = latestPartner.username || '@username';
-                         contactInfoBio.textContent = latestPartner.bio || 'No bio available.';
-                     }
-                 }
-            }
-            if (window.ChatApp.renderContacts) window.ChatApp.renderContacts();
-            if (window.ChatApp.activeChatPartner && window.ChatApp.renderMessages) {
-                window.ChatApp.renderMessages();
-            }
+        }
+        
+        initialLoad = false;
+        
+        if (window.ChatApp.renderContacts) window.ChatApp.renderContacts();
+        if (window.ChatApp.activeChatPartner && window.ChatApp.renderMessages) {
+            window.ChatApp.renderMessages();
         }
     });
 
-    // Initial render
-    if (window.ChatApp.renderContacts) {
-        window.ChatApp.renderContacts();
-    }
 });

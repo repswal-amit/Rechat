@@ -1,3 +1,6 @@
+import { auth } from './firebase-config.js';
+import { updatePassword, reauthenticateWithCredential, EmailAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
 document.addEventListener('DOMContentLoaded', () => {
     if (!window.ChatApp.getCurrentUser()) return;
 
@@ -57,34 +60,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (passwordForm) {
-        passwordForm.addEventListener('submit', (e) => {
+        passwordForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const currentUser = window.ChatApp.getCurrentUser();
             const currentPass = currentPasswordInput.value;
             const newPass = newPasswordInput.value;
             
-            if (currentUser.password && currentUser.password !== currentPass) {
-                alert("Current password is incorrect.");
-                return;
-            }
-            
-            const updatedUser = { ...currentUser, password: newPass };
-            let users = window.ChatApp.getAllUsers();
-            const index = users.findIndex(u => u.id === currentUser.id);
-            if (index !== -1) {
-                users[index] = updatedUser;
-            } else {
-                users.push(updatedUser);
-            }
-            
             try {
-                window.ChatApp.setAllUsers(users);
-                window.ChatApp.setCurrentUser(updatedUser);
+                const user = auth.currentUser;
+                if (!user) throw new Error("Please wait for authentication to complete or log in again.");
+                
+                // Reauthenticate
+                const credential = EmailAuthProvider.credential(user.email, currentPass);
+                await reauthenticateWithCredential(user, credential);
+                
+                // Update password
+                await updatePassword(user, newPass);
+                
                 alert("Password updated successfully!");
                 passwordSidebar.classList.remove('active');
                 passwordForm.reset();
             } catch (err) {
-                alert("Failed to save password.");
+                alert("Failed to update password: " + err.message);
             }
         });
     }
@@ -104,8 +100,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Logout
     if (menuLogout) {
-        menuLogout.addEventListener('click', (e) => {
+        menuLogout.addEventListener('click', async (e) => {
             e.preventDefault();
+            try {
+                await signOut(auth);
+            } catch (err) {
+                console.error("Firebase signout error", err);
+            }
             window.ChatApp.clearCurrentUser();
             window.location.href = 'login.html';
         });

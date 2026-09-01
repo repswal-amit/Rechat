@@ -1,3 +1,6 @@
+import { db } from './firebase-config.js';
+import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
 document.addEventListener('DOMContentLoaded', () => {
     if (!window.ChatApp.getCurrentUser()) return;
 
@@ -73,9 +76,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (profileForm) {
-        profileForm.addEventListener('submit', (e) => {
+        profileForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const currentUser = window.ChatApp.getCurrentUser();
+            const submitBtn = profileForm.querySelector('button[type="submit"]');
             
             const updatedUser = {
                 ...currentUser,
@@ -85,24 +89,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 profilePic: pendingProfilePic
             };
             
-            let users = window.ChatApp.getAllUsers();
-            const index = users.findIndex(u => u.id === currentUser.id);
-            if (index !== -1) {
-                users[index] = updatedUser;
-            } else {
-                users.push(updatedUser);
-            }
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Saving...';
             
             try {
-                window.ChatApp.setAllUsers(users);
+                // Update Firestore
+                const userRef = doc(db, "users", currentUser.id);
+                await updateDoc(userRef, {
+                    name: updatedUser.name,
+                    username: updatedUser.username,
+                    bio: updatedUser.bio,
+                    profilePic: updatedUser.profilePic
+                });
+                
+                // Update Local Storage Session
                 window.ChatApp.setCurrentUser(updatedUser);
                 
                 myProfileSidebar.classList.remove('active');
-                if (window.ChatApp.renderContacts) window.ChatApp.renderContacts();
-                if (window.ChatApp.renderMessages) window.ChatApp.renderMessages();
             } catch (err) {
-                alert('Failed to save profile. The image might be too large, or local storage is full.');
+                alert('Failed to save profile. The image might be too large for Firestore document limits.');
                 console.error('Save profile error:', err);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Save Changes';
             }
         });
     }
