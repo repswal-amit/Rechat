@@ -416,24 +416,45 @@ a:hover {
 .chat-partner-info {
   display: flex;
   align-items: center;
+  gap: 12px;
   padding: 0.5rem;
   border-radius: 12px;
   transition: background 0.2s;
+  flex: 1;
+  min-width: 0;
 }
 
 .chat-partner-info:hover {
   background: rgba(255, 255, 255, 0.05);
 }
 
+.partner-details {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .partner-details h3 {
   font-size: 1.1rem;
   font-weight: 600;
-  margin-bottom: 0.1rem;
+  margin: 0;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .partner-status {
   font-size: 0.85rem;
   color: var(--success);
+  margin-top: 2px;
+  line-height: 1.2;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-actions {

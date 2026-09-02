@@ -132,12 +132,12 @@
         <!-- Main Chat Area -->
         <main class="chat-area" id="main-chat-area">
             <header class="chat-header">
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <button class="btn-icon" id="close-chat-btn" style="display: none; width: 36px; height: 36px; border: none; background: transparent;" title="Close Chat">
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0;">
+                    <button class="btn-icon" id="close-chat-btn" style="display: none; width: 36px; height: 36px; border: none; background: transparent; flex-shrink: 0;" title="Close Chat">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                     </button>
-                    <div class="chat-partner-info" id="chat-partner-info-btn" style="cursor: pointer;" title="View Contact Info">
-                        <div class="avatar online" id="chat-partner-avatar">?</div>
+                    <div class="chat-partner-info" id="chat-partner-info-btn" style="cursor: pointer; flex: 1; min-width: 0;" title="View Contact Info">
+                        <div class="avatar online" id="chat-partner-avatar" style="flex-shrink: 0;">?</div>
                         <div class="partner-details">
                             <h3 id="chat-partner-name">Select a contact</h3>
                             <span class="partner-status" id="chat-partner-status"></span>
@@ -145,7 +145,7 @@
                     </div>
                 </div>
                 
-                <div class="chat-header-actions" id="chat-header-actions" style="display: none;">
+                <div class="chat-header-actions" id="chat-header-actions" style="display: none; flex-shrink: 0;">
                     <button class="btn-icon header-action-btn" title="Voice Call">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
                     </button>
