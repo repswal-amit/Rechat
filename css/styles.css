@@ -537,6 +537,21 @@ a:hover {
   border-top-right-radius: 4px;
 }
 
+.message-image {
+  max-width: 100%;
+  border-radius: 12px;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.uploading-indicator {
+  font-size: 0.8rem;
+  color: var(--accent-color);
+  font-style: italic;
+  margin-bottom: 0.5rem;
+}
+
 .message-time {
   font-size: 0.75rem;
   color: var(--text-secondary);
@@ -723,6 +738,10 @@ a:hover {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
 }
 
 /* Responsive */

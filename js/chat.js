@@ -1,3 +1,5 @@
+import { cloudinaryConfig } from './cloudinary-config.js';
+
 document.addEventListener('DOMContentLoaded', () => {
     if (!window.ChatApp.getCurrentUser()) return;
 
@@ -20,6 +22,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const editBanner = document.getElementById('edit-banner');
     const cancelEditBtn = document.getElementById('cancel-edit-btn');
+    
+    const chatImageUpload = document.getElementById('chat-image-upload');
+    const btnAttachImage = document.getElementById('btn-attach-image');
     
     // Header Actions & Toast
     const chatHeaderActions = document.getElementById('chat-header-actions');
@@ -164,13 +169,18 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const editedTag = msg.edited ? `<span style="font-size: 0.65rem; font-style: italic; opacity: 0.8; margin-left: 4px;">(edited)</span>` : '';
             
+            const imageHtml = msg.imageUrl ? `<img src="${msg.imageUrl}" alt="Image" class="message-image">` : '';
+            
             const messageHtml = `
                 <div class="message ${messageClass}">
                     ${avatarHtml}
                     <div class="message-content">
                         <div style="display: flex; align-items: center;">
                             ${isSentByMe ? actionsHtml : ''}
-                            <div class="message-bubble">${msg.text}</div>
+                            <div class="message-bubble">
+                                ${imageHtml}
+                                ${msg.text ? `<div>${msg.text}</div>` : ''}
+                            </div>
                             ${!isSentByMe ? actionsHtml : ''}
                         </div>
                         <div class="message-time">${window.ChatApp.formatTime(msg.timestamp)}${editedTag}</div>
@@ -242,6 +252,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (cancelEditBtn) {
         cancelEditBtn.addEventListener('click', cancelEditMode);
+    }
+    
+    // Image Upload Logic
+    if (btnAttachImage && chatImageUpload) {
+        btnAttachImage.addEventListener('click', () => {
+            chatImageUpload.click();
+        });
+
+        chatImageUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const originalHtml = btnAttachImage.innerHTML;
+            btnAttachImage.innerHTML = `<svg class="spinner" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>`;
+            btnAttachImage.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+
+            try {
+                const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.secure_url) {
+                    await window.ChatApp.saveMessage(window.ChatApp.activeChatPartner.id, chatInput ? chatInput.value.trim() : '', data.secure_url);
+                    if (chatInput) chatInput.value = '';
+                    window.ChatApp.renderMessages();
+                    window.ChatApp.renderContacts();
+                } else {
+                    alert('Failed to upload image: ' + (data.error ? data.error.message : 'Unknown error'));
+                }
+            } catch (error) {
+                console.error("Cloudinary upload error", error);
+                alert("Error uploading image");
+            } finally {
+                btnAttachImage.innerHTML = originalHtml;
+                btnAttachImage.disabled = false;
+                chatImageUpload.value = '';
+            }
+        });
     }
     
     // Close Chat button

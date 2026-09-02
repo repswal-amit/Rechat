@@ -33,7 +33,7 @@ window.ChatApp = {
     
     // Messages
     getAllMessages: () => window.ChatApp._messages,
-    saveMessage: async (receiverId, text) => {
+    saveMessage: async (receiverId, text, imageUrl = null) => {
         const currentUser = window.ChatApp.getCurrentUser();
         const newMessage = {
             senderId: currentUser.id,
@@ -42,6 +42,7 @@ window.ChatApp = {
             timestamp: new Date().toISOString(),
             read: false
         };
+        if (imageUrl) newMessage.imageUrl = imageUrl;
         try {
             await addDoc(collection(db, "messages"), newMessage);
         } catch(e) {
