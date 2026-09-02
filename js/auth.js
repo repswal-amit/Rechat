@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await setDoc(doc(db, "users", user.uid), userData);
                 
                 // 3. Save locally for immediate access
-                sessionStorage.setItem('current_user', JSON.stringify(userData));
+                localStorage.setItem('current_user', JSON.stringify(userData));
                 
                 // 4. Redirect
                 window.location.href = 'chat.html';
@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Note: The actual user data will be fetched in store.js or app.js
                 // For now, just set a basic token so router knows we're authenticated
-                sessionStorage.setItem('current_user', JSON.stringify({
+                localStorage.setItem('current_user', JSON.stringify({
                     id: userCredential.user.uid,
                     email: userCredential.user.email
                 }));

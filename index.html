@@ -36,8 +36,8 @@
         // If user is already logged in, send to chat. Otherwise, send to login.
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
-                if (sessionStorage.getItem('current_user')) {
-                    window.location.replace('chat.html');
+                if (localStorage.getItem('current_user')) {
+                    window.location.href = 'chat.html';
                 } else {
                     window.location.replace('login.html');
                 }

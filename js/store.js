@@ -15,9 +15,9 @@ window.ChatApp = {
     renderMessages: null, // to be populated by chat.js
     
     // Auth
-    getCurrentUser: () => JSON.parse(sessionStorage.getItem('current_user')),
-    setCurrentUser: (user) => sessionStorage.setItem('current_user', JSON.stringify(user)),
-    clearCurrentUser: () => sessionStorage.removeItem('current_user'),
+    getCurrentUser: () => JSON.parse(localStorage.getItem('current_user')),
+    setCurrentUser: (user) => localStorage.setItem('current_user', JSON.stringify(user)),
+    clearCurrentUser: () => localStorage.removeItem('current_user'),
     
     // Users
     getAllUsers: () => window.ChatApp._users,
