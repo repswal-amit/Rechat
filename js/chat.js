@@ -151,7 +151,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const isActive = window.ChatApp.activeChatPartner && window.ChatApp.activeChatPartner.id === user.id;
             contactItem.className = `contact-item ${isActive ? 'active' : ''}`;
             
-            const avatarHtml = window.ChatApp.getAvatarHtml(user, "online");
+            const isOnline = user.lastActive && (new Date() - new Date(user.lastActive)) < 2 * 60000;
+            const avatarHtml = window.ChatApp.getAvatarHtml(user, isOnline ? "online" : "");
             const unreadBadge = user.unreadCount > 0 ? `<span class="unread-badge">${user.unreadCount}</span>` : '';
             let previewHtml = 'No messages yet';
             if (lastMessage) {
@@ -222,7 +223,31 @@ document.addEventListener('DOMContentLoaded', () => {
         window.ChatApp.markMessagesAsRead(activeChatPartner.id);
         
         if (chatPartnerName) chatPartnerName.textContent = activeChatPartner.name;
-        if (chatPartnerStatus) chatPartnerStatus.textContent = activeChatPartner.bio || 'Online';
+        if (chatPartnerStatus) {
+            let statusText = 'Offline';
+            const isOnline = activeChatPartner.lastActive && (new Date() - new Date(activeChatPartner.lastActive)) < 2 * 60000;
+            
+            if (isOnline) {
+                statusText = 'Active now';
+                chatPartnerAvatar.classList.add('online');
+            } else {
+                chatPartnerAvatar.classList.remove('online');
+                if (activeChatPartner.lastActive) {
+                    const lastTime = new Date(activeChatPartner.lastActive);
+                    const diffMins = Math.floor((new Date() - lastTime) / 60000);
+                    if (diffMins < 60 && diffMins > 0) {
+                        statusText = `last seen ${diffMins} minutes ago`;
+                    } else {
+                        const isToday = new Date().toDateString() === lastTime.toDateString();
+                        statusText = `last seen ${isToday ? 'today at' : 'on'} ${window.ChatApp.formatTime(activeChatPartner.lastActive)}`;
+                    }
+                } else {
+                    statusText = 'last seen a long time ago';
+                }
+            }
+            chatPartnerStatus.textContent = statusText;
+            chatPartnerStatus.style.textTransform = 'none'; // Ensure case looks like WhatsApp
+        }
         window.ChatApp.updateAvatarElement(chatPartnerAvatar, activeChatPartner);
         if (closeChatBtn) closeChatBtn.style.display = 'flex';
         if (chatHeaderActions) chatHeaderActions.style.display = 'flex';

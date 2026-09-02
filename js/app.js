@@ -1,5 +1,5 @@
 import { db } from './firebase-config.js';
-import { collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { collection, onSnapshot, query, orderBy, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
 // Application Bootstrapper and Firebase Sync
 document.addEventListener('DOMContentLoaded', () => {
@@ -44,6 +44,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!currentUser) return; // Only sync if logged in
 
     // --- FIREBASE REAL-TIME SYNC ---
+
+    // 0. Presence / Heartbeat (Update lastActive every 1 minute)
+    const updatePresence = async () => {
+        if (!currentUser) return;
+        try {
+            await updateDoc(doc(db, "users", currentUser.id), {
+                lastActive: new Date().toISOString()
+            });
+        } catch (e) {
+            console.error("Error updating presence", e);
+        }
+    };
+    // Update immediately and then every 1 minute
+    updatePresence();
+    setInterval(updatePresence, 60000);
+    // Also update when user comes back to the tab
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) updatePresence();
+    });
 
     // 1. Users Listener
     const qUsers = query(collection(db, "users"));
