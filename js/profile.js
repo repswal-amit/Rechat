@@ -107,8 +107,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 myProfileSidebar.classList.remove('active');
             } catch (err) {
-                alert('Failed to save profile. The image might be too large for Firestore document limits.');
-                console.error('Save profile error:', err);
+                console.error("Error updating profile:", err);
+                window.showToast('Failed to save profile. The image might be too large.', 'error');
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Save Changes';

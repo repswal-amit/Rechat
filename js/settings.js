@@ -76,11 +76,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update password
                 await updatePassword(user, newPass);
                 
-                alert("Password updated successfully!");
-                passwordSidebar.classList.remove('active');
+                window.showToast("Password updated successfully!", "success");
                 passwordForm.reset();
+                passwordSidebar.classList.remove('active');
             } catch (err) {
-                alert("Failed to update password: " + err.message);
+                window.showToast("Failed to update password: " + err.message, "error");
             }
         });
     }

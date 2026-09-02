@@ -4,6 +4,24 @@ import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-
 
 document.addEventListener('DOMContentLoaded', () => {
     
+    // Global Toast Function for Auth Pages
+    window.showToast = (message, type = 'error') => {
+        let toast = document.getElementById('toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'toast';
+            toast.className = 'toast';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = message;
+        if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
+        else if (type === 'success') toast.style.backgroundColor = 'var(--success)';
+        else toast.style.backgroundColor = 'var(--accent-color)';
+        
+        toast.className = 'toast show';
+        setTimeout(() => { toast.className = toast.className.replace('show', ''); }, 3000);
+    };
+
     // -- Register Form Logic --
     const registerForm = document.getElementById('register-form');
     if (registerForm) {
@@ -16,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const confirmPassword = document.getElementById('confirm-password').value;
             
             if (password !== confirmPassword) {
-                alert('Passwords do not match!');
+                window.showToast('Passwords do not match!', 'error');
                 return;
             }
             
@@ -48,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 4. Redirect
                 window.location.href = 'chat.html';
             } catch (error) {
-                alert('Error creating account: ' + error.message);
+                window.showToast('Error creating account: ' + error.message, 'error');
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Sign Up';
             }
@@ -80,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 window.location.href = 'chat.html';
             } catch (error) {
-                alert('Invalid email or password! ' + error.message);
+                window.showToast('Invalid email or password!', 'error');
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Sign In';
             }
@@ -96,10 +114,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             try {
                 await sendPasswordResetEmail(auth, email);
-                alert('A password reset link has been sent to your email!');
-                window.location.href = 'login.html';
+                window.showToast('A password reset link has been sent to your email!', 'success');
+                setTimeout(() => { window.location.href = 'login.html'; }, 2000);
             } catch (error) {
-                alert('Error: ' + error.message);
+                window.showToast('Error: ' + error.message, 'error');
             }
         });
     }

@@ -385,11 +385,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.ChatApp.renderMessages();
                     window.ChatApp.renderContacts();
                 } else {
-                    alert('Failed to upload image: ' + (data.error ? data.error.message : 'Unknown error'));
+                    window.showToast('Failed to upload image: ' + (data.error ? data.error.message : 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error("Cloudinary upload error", error);
-                alert("Error uploading image");
+                window.showToast("Error uploading image", 'error');
             } finally {
                 btnAttachImage.innerHTML = originalHtml;
                 btnAttachImage.disabled = false;
@@ -458,15 +458,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Header Actions Toast & Dropdown
-    const showToast = () => {
-        if (!toast) return;
+    window.showToast = (message, type = 'error') => {
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'toast';
+            toast.className = 'toast';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = message;
+        if (type === 'error') toast.style.backgroundColor = 'var(--danger)';
+        else if (type === 'success') toast.style.backgroundColor = 'var(--success)';
+        else toast.style.backgroundColor = 'var(--accent-color)';
+        
         toast.className = "toast show";
         setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
     };
 
     headerActionBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            showToast();
+            window.showToast('Coming Soon', 'default');
             if (chatOptionsMenu) chatOptionsMenu.classList.remove('show');
         });
     });
