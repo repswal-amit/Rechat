@@ -181,6 +181,10 @@ document.addEventListener('DOMContentLoaded', () => {
             contactItem.innerHTML = avatarHtml + infoHtml;
             
             contactItem.addEventListener('click', () => {
+                if (appContainer && !appContainer.classList.contains('mobile-chat-active')) {
+                    history.pushState({ chatOpen: true }, '');
+                }
+
                 window.ChatApp.activeChatPartner = user;
                 if (contactInfoSidebar && contactInfoSidebar.classList.contains('active')) {
                     populateContactInfo(user);
@@ -394,25 +398,40 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // Close Chat button
+    // Close Chat button & Hardware Back Button Logic
+    const closeChat = () => {
+        if (!window.ChatApp.activeChatPartner) return;
+        window.ChatApp.activeChatPartner = null;
+        if (contactInfoSidebar) contactInfoSidebar.classList.remove('active');
+        
+        chatPartnerName.textContent = 'Select a contact';
+        chatPartnerStatus.textContent = '';
+        chatPartnerAvatar.style.backgroundImage = 'none';
+        chatPartnerAvatar.textContent = '?';
+        closeChatBtn.style.display = 'none';
+        if (chatHeaderActions) chatHeaderActions.style.display = 'none';
+        if (chatOptionsMenu) chatOptionsMenu.classList.remove('show');
+        if (appContainer) appContainer.classList.remove('mobile-chat-active');
+        
+        chatMessages.innerHTML = `<div style="text-align: center; color: var(--text-secondary); margin-top: 2rem;">Please select a contact from the sidebar to start chatting.</div>`;
+        
+        cancelEditMode();
+        window.ChatApp.renderContacts();
+    };
+
+    window.addEventListener('popstate', (e) => {
+        if (appContainer && appContainer.classList.contains('mobile-chat-active')) {
+            closeChat();
+        }
+    });
+
     if (closeChatBtn) {
         closeChatBtn.addEventListener('click', () => {
-            window.ChatApp.activeChatPartner = null;
-            if (contactInfoSidebar) contactInfoSidebar.classList.remove('active');
-            
-            chatPartnerName.textContent = 'Select a contact';
-            chatPartnerStatus.textContent = '';
-            chatPartnerAvatar.style.backgroundImage = 'none';
-            chatPartnerAvatar.textContent = '?';
-            closeChatBtn.style.display = 'none';
-            if (chatHeaderActions) chatHeaderActions.style.display = 'none';
-            if (chatOptionsMenu) chatOptionsMenu.classList.remove('show');
-            if (appContainer) appContainer.classList.remove('mobile-chat-active');
-            
-            chatMessages.innerHTML = `<div style="text-align: center; color: var(--text-secondary); margin-top: 2rem;">Please select a contact from the sidebar to start chatting.</div>`;
-            
-            cancelEditMode();
-            window.ChatApp.renderContacts();
+            if (history.state && history.state.chatOpen) {
+                history.back();
+            } else {
+                closeChat();
+            }
         });
     }
 
