@@ -39,7 +39,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Image Viewer Modal Logic
     const imageViewerModal = document.getElementById('image-viewer-modal');
     const imageViewerImg = document.getElementById('image-viewer-img');
-    const closeViewerBtn = document.getElementById('close-viewer-btn');
 
     const openImageViewer = (src) => {
         if (!src || src === 'none' || src === '') return;
@@ -47,19 +46,58 @@ document.addEventListener('DOMContentLoaded', () => {
         const cleanSrc = src.replace(/^url\(["']?/, '').replace(/["']?\)$/, '');
         imageViewerImg.src = cleanSrc;
         imageViewerModal.classList.add('active');
+        imageViewerImg.style.transform = 'scale(1) translateY(0)';
     };
 
     const closeImageViewer = () => {
         imageViewerModal.classList.remove('active');
-        setTimeout(() => { imageViewerImg.src = ''; }, 300);
+        setTimeout(() => { 
+            imageViewerImg.src = ''; 
+            imageViewerImg.style.transform = '';
+            imageViewerModal.style.backgroundColor = '';
+        }, 300);
     };
 
-    if (closeViewerBtn) {
-        closeViewerBtn.addEventListener('click', closeImageViewer);
-    }
     if (imageViewerModal) {
+        // Tap outside to close
         imageViewerModal.addEventListener('click', (e) => {
             if (e.target === imageViewerModal) closeImageViewer();
+        });
+
+        // Swipe up/down to close
+        let touchStartY = 0;
+        let touchCurrentY = 0;
+        
+        imageViewerModal.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+            touchCurrentY = touchStartY;
+            imageViewerImg.style.transition = 'none';
+        }, { passive: true });
+
+        imageViewerModal.addEventListener('touchmove', (e) => {
+            touchCurrentY = e.touches[0].clientY;
+            const deltaY = touchCurrentY - touchStartY;
+            imageViewerImg.style.transform = `scale(1) translateY(${deltaY}px)`;
+            
+            // Adjust background opacity based on swipe distance
+            const opacity = 1 - Math.min(Math.abs(deltaY) / (window.innerHeight / 2), 0.8);
+            imageViewerModal.style.backgroundColor = `rgba(0, 0, 0, ${opacity * 0.9})`;
+        }, { passive: true });
+
+        imageViewerModal.addEventListener('touchend', () => {
+            const deltaY = touchCurrentY - touchStartY;
+            imageViewerImg.style.transition = 'transform 0.3s ease';
+            
+            // If swiped more than 100px up or down, close
+            if (Math.abs(deltaY) > 100) {
+                const direction = deltaY > 0 ? 1 : -1;
+                imageViewerImg.style.transform = `scale(0.9) translateY(${direction * window.innerHeight}px)`;
+                closeImageViewer();
+            } else {
+                // Snap back
+                imageViewerImg.style.transform = 'scale(1) translateY(0)';
+                imageViewerModal.style.backgroundColor = '';
+            }
         });
     }
 
@@ -115,6 +153,18 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const avatarHtml = window.ChatApp.getAvatarHtml(user, "online");
             const unreadBadge = user.unreadCount > 0 ? `<span class="unread-badge">${user.unreadCount}</span>` : '';
+            let previewHtml = 'No messages yet';
+            if (lastMessage) {
+                if (lastMessage.imageUrl) {
+                    previewHtml = `<span style="display: flex; align-items: center; gap: 6px;">
+                        <img src="${lastMessage.imageUrl}" style="width: 18px; height: 18px; object-fit: cover; border-radius: 4px;" alt="Image">
+                        ${lastMessage.text ? `<span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${lastMessage.text}</span>` : 'Photo'}
+                    </span>`;
+                } else {
+                    previewHtml = lastMessage.text;
+                }
+            }
+
             const infoHtml = `
                 <div class="contact-info">
                     <div class="contact-header">
@@ -124,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="contact-time">${lastMessage ? window.ChatApp.formatTime(lastMessage.timestamp) : ''}</span>
                         </div>
                     </div>
-                    <div class="contact-preview">${lastMessage ? lastMessage.text : 'No messages yet'}</div>
+                    <div class="contact-preview">${previewHtml}</div>
                 </div>
             `;
             
@@ -211,6 +261,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const imageHtml = msg.imageUrl ? `<img src="${msg.imageUrl}" alt="Image" class="message-image">` : '';
             
+            const readReceiptHtml = isSentByMe ? 
+                (msg.read ? `<span style="color: #34b7f1; margin-left: 4px; font-weight: bold; letter-spacing: -2px;">✓✓</span>` : 
+                            `<span style="color: var(--text-secondary); margin-left: 4px; font-weight: bold;">✓</span>`) 
+                : '';
+            
             const messageHtml = `
                 <div class="message ${messageClass}">
                     ${avatarHtml}
@@ -223,7 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                             ${!isSentByMe ? actionsHtml : ''}
                         </div>
-                        <div class="message-time">${window.ChatApp.formatTime(msg.timestamp)}${editedTag}</div>
+                        <div class="message-time">${window.ChatApp.formatTime(msg.timestamp)}${editedTag}${readReceiptHtml}</div>
                     </div>
                 </div>
             `;
