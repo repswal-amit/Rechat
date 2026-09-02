@@ -36,6 +36,46 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let editingMessageId = null;
 
+    // Image Viewer Modal Logic
+    const imageViewerModal = document.getElementById('image-viewer-modal');
+    const imageViewerImg = document.getElementById('image-viewer-img');
+    const closeViewerBtn = document.getElementById('close-viewer-btn');
+
+    const openImageViewer = (src) => {
+        if (!src || src === 'none' || src === '') return;
+        // Clean URL if it's from a background-image property
+        const cleanSrc = src.replace(/^url\(["']?/, '').replace(/["']?\)$/, '');
+        imageViewerImg.src = cleanSrc;
+        imageViewerModal.classList.add('active');
+    };
+
+    const closeImageViewer = () => {
+        imageViewerModal.classList.remove('active');
+        setTimeout(() => { imageViewerImg.src = ''; }, 300);
+    };
+
+    if (closeViewerBtn) {
+        closeViewerBtn.addEventListener('click', closeImageViewer);
+    }
+    if (imageViewerModal) {
+        imageViewerModal.addEventListener('click', (e) => {
+            if (e.target === imageViewerModal) closeImageViewer();
+        });
+    }
+
+    // Global click listener for images and avatars
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('message-image')) {
+            openImageViewer(e.target.src);
+        } else if (e.target.classList.contains('avatar')) {
+            // Some avatars might just have text '?', check if there is a background image
+            const bgImage = window.getComputedStyle(e.target).backgroundImage;
+            if (bgImage && bgImage !== 'none') {
+                openImageViewer(bgImage);
+            }
+        }
+    });
+
     window.ChatApp.renderContacts = () => {
         if (!contactsList) return;
         const currentUser = window.ChatApp.getCurrentUser();
