@@ -18,16 +18,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const playNotificationSound = () => {
         try {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext) return;
-            const ctx = new AudioContext();
-            const osc = ctx.createOscillator();
-            const gainNode = ctx.createGain();
-            
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(800, ctx.currentTime);
-            
-            gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+            // Try to play a pleasant notification sound
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+            audio.play().catch(() => {
+                // Fallback to beep if audio play fails (e.g., due to browser policy)
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                const osc = ctx.createOscillator();
+                const gainNode = ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, ctx.currentTime);
+                
+                gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
             gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
             
             osc.connect(gainNode);
@@ -112,29 +116,34 @@ document.addEventListener('DOMContentLoaded', () => {
         const oldLength = window.ChatApp._messages.length;
         window.ChatApp._messages = messages;
         
-        // Notification logic
-        if (!initialLoad && messages.length > oldLength) {
-            const latestMsg = messages[messages.length - 1];
-            const activePartnerId = window.ChatApp.activeChatPartner ? window.ChatApp.activeChatPartner.id : null;
-            
-            if (latestMsg.receiverId === currentUser.id && !latestMsg.read) {
-                if (activePartnerId !== latestMsg.senderId || document.hidden) {
-                    playNotificationSound();
+        // Notification logic based on new messages
+        if (!initialLoad) {
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === 'added') {
+                    const latestMsg = change.doc.data();
+                    const activePartnerId = window.ChatApp.activeChatPartner ? window.ChatApp.activeChatPartner.id : null;
                     
-                    if (window.Notification && Notification.permission === "granted") {
-                        const sender = window.ChatApp._users.find(u => u.id === latestMsg.senderId);
-                        const senderName = sender ? sender.name : 'Someone';
-                        
-                        const n = new Notification(`New message from ${senderName}`, {
-                            body: latestMsg.text
-                        });
-                        n.onclick = () => {
-                            window.focus();
-                            n.close();
-                        };
+                    if (latestMsg.receiverId === currentUser.id && !latestMsg.read) {
+                        if (activePartnerId !== latestMsg.senderId || document.hidden) {
+                            playNotificationSound();
+                            
+                            if (window.Notification && Notification.permission === "granted") {
+                                const sender = window.ChatApp._users.find(u => u.id === latestMsg.senderId);
+                                const senderName = sender ? sender.name : 'Someone';
+                                
+                                const n = new Notification(`New message from ${senderName}`, {
+                                    body: latestMsg.text,
+                                    icon: sender ? sender.profilePic : null
+                                });
+                                n.onclick = () => {
+                                    window.focus();
+                                    n.close();
+                                };
+                            }
+                        }
                     }
                 }
-            }
+            });
         }
         
         initialLoad = false;
