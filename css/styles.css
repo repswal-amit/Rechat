@@ -98,6 +98,7 @@ a:hover {
   font-weight: 700;
   margin-bottom: 0.5rem;
   background: linear-gradient(135deg, #a5b4fc, #818cf8);
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
