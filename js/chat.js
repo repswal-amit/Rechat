@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const contactsList = document.getElementById('contacts-list');
     const chatMessages = document.getElementById('chat-messages');
     const chatInput = document.querySelector('.chat-input');
+    const searchInput = document.querySelector('.search-input');
     const btnSend = document.querySelector('.btn-send');
     const chatPartnerName = document.getElementById('chat-partner-name');
     const chatPartnerStatus = document.getElementById('chat-partner-status');
@@ -113,6 +114,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+    
+    let searchQuery = '';
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            searchQuery = e.target.value.toLowerCase().trim();
+            window.ChatApp.renderContacts();
+        });
+    }
 
     window.ChatApp.renderContacts = () => {
         if (!contactsList) return;
@@ -127,7 +136,20 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const enrichedUsers = otherUsers.map(user => {
+        let filteredUsers = otherUsers;
+        if (searchQuery) {
+            filteredUsers = otherUsers.filter(user => 
+                (user.name && user.name.toLowerCase().includes(searchQuery)) || 
+                (user.username && user.username.toLowerCase().includes(searchQuery))
+            );
+        }
+
+        if (filteredUsers.length === 0) {
+            contactsList.innerHTML = '<div style="padding: 1rem; color: var(--text-secondary); text-align: center;">No contacts found matching your search.</div>';
+            return;
+        }
+
+        const enrichedUsers = filteredUsers.map(user => {
             const chatHistory = messages.filter(m => 
                 (m.senderId === currentUser.id && m.receiverId === user.id) ||
                 (m.senderId === user.id && m.receiverId === currentUser.id)
