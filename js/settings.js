@@ -27,13 +27,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (settingsBtn) {
         settingsBtn.addEventListener('click', () => {
             settingsSidebar.classList.add('active');
+            history.pushState({ settingsOpen: true }, '');
         });
     }
     if (closeSettingsBtn) {
         closeSettingsBtn.addEventListener('click', () => {
-            settingsSidebar.classList.remove('active');
+            if (history.state && history.state.settingsOpen) {
+                history.back();
+            } else {
+                settingsSidebar.classList.remove('active');
+            }
         });
     }
+
+    // Handle back button for sidebars
+    window.addEventListener('popstate', () => {
+        if (settingsSidebar && settingsSidebar.classList.contains('active')) {
+            settingsSidebar.classList.remove('active');
+        }
+        if (passwordSidebar && passwordSidebar.classList.contains('active')) {
+            passwordSidebar.classList.remove('active');
+        }
+    });
 
     // Profile Menu
     const openProfile = () => {
@@ -51,11 +66,16 @@ document.addEventListener('DOMContentLoaded', () => {
         menuPassword.addEventListener('click', () => {
             settingsSidebar.classList.remove('active');
             passwordSidebar.classList.add('active');
+            history.pushState({ passwordOpen: true }, '');
         });
     }
     if (closePasswordBtn) {
         closePasswordBtn.addEventListener('click', () => {
-            passwordSidebar.classList.remove('active');
+            if (history.state && history.state.passwordOpen) {
+                history.back();
+            } else {
+                passwordSidebar.classList.remove('active');
+            }
         });
     }
 

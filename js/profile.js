@@ -26,13 +26,25 @@ document.addEventListener('DOMContentLoaded', () => {
         editUsernameInput.value = currentUser.username || '';
         editBioInput.value = currentUser.bio || '';
         myProfileSidebar.classList.add('active');
+        history.pushState({ profileOpen: true }, '');
     };
 
     if (closeMyProfileBtn) {
         closeMyProfileBtn.addEventListener('click', () => {
-            myProfileSidebar.classList.remove('active');
+            if (history.state && history.state.profileOpen) {
+                history.back();
+            } else {
+                myProfileSidebar.classList.remove('active');
+            }
         });
     }
+
+    // Handle back button for profile sidebar
+    window.addEventListener('popstate', () => {
+        if (myProfileSidebar && myProfileSidebar.classList.contains('active')) {
+            myProfileSidebar.classList.remove('active');
+        }
+    });
 
     if (profilePicUpload) {
         profilePicUpload.addEventListener('change', (e) => {
