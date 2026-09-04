@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             osc.start();
             osc.stop(ctx.currentTime + 0.2);
+            });
         } catch (e) {
             console.warn("AudioContext error", e);
         }
