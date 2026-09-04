@@ -1164,4 +1164,173 @@ input:checked + .slider:before {
 }
 .avatar {
   cursor: pointer;
+}/* ------------------------------------- */
+/* Advanced Message Actions & Selection  */
+/* ------------------------------------- */
+
+/* Selection Header */
+.selection-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 85px;
+  background: var(--accent-color);
+  z-index: 50;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 1.5rem;
+  color: white;
+  animation: slideDown 0.3s ease;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+
+.selection-header .left-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.selection-header .selection-count {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.selection-header .right-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.selection-header .btn-icon {
+  color: white;
+  background: transparent;
+  border: none;
+}
+.selection-header .btn-icon:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+/* Selected Message State */
+.message {
+  transition: background-color 0.2s;
+  padding: 0.5rem;
+  border-radius: 8px;
+  cursor: default;
+}
+.message.selected {
+  background-color: rgba(99, 102, 241, 0.15);
+}
+
+/* Reaction Picker */
+.reaction-picker {
+  position: absolute;
+  background: var(--bg-secondary);
+  border: var(--glass-border);
+  border-radius: 30px;
+  padding: 0.5rem;
+  display: flex;
+  gap: 0.5rem;
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  animation: scaleIn 0.2s ease-out;
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.reaction-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: transform 0.2s;
+  padding: 0.25rem;
+  border-radius: 50%;
+}
+.reaction-btn:hover {
+  transform: scale(1.3);
+  background: rgba(255,255,255,0.1);
+}
+
+/* Reaction Badges on Messages */
+.reaction-badges {
+  position: absolute;
+  bottom: -10px;
+  right: 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 2px 6px;
+  font-size: 0.8rem;
+  display: flex;
+  gap: 4px;
+  box-shadow: var(--shadow-sm);
+}
+
+.message.sent .reaction-badges {
+  left: 10px;
+  right: auto;
+}
+
+/* Modal Base */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal-content {
+  background: var(--bg-secondary);
+  border: var(--glass-border);
+  border-radius: 20px;
+  width: 90%;
+  max-width: 400px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-glass);
+}
+
+.modal-header {
+  padding: 1.25rem;
+  border-bottom: var(--glass-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-body {
+  padding: 1rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Tombstone (Deleted Message) */
+.deleted-message {
+  font-style: italic;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }

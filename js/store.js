@@ -1,5 +1,5 @@
 import { db } from './firebase-config.js';
-import { collection, addDoc, doc, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { collection, addDoc, doc, updateDoc, deleteDoc, writeBatch, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
 // Global State and Data Management
 window.ChatApp = window.ChatApp || {};
@@ -84,12 +84,67 @@ window.ChatApp = {
         }
     },
     
-    deleteMessage: async (msgId) => {
+    deleteMessagesForMe: async (msgIds) => {
+        const currentUser = window.ChatApp.getCurrentUser();
+        if (!currentUser) return;
+        try {
+            const batch = writeBatch(db);
+            msgIds.forEach(msgId => {
+                const msgRef = doc(db, "messages", msgId);
+                batch.update(msgRef, {
+                    deletedFor: arrayUnion(currentUser.id)
+                });
+            });
+            await batch.commit();
+        } catch (e) {
+            console.error("Error deleting messages for me", e);
+        }
+    },
+    
+    deleteMessagesForEveryone: async (msgIds) => {
+        try {
+            const batch = writeBatch(db);
+            msgIds.forEach(msgId => {
+                const msgRef = doc(db, "messages", msgId);
+                batch.update(msgRef, {
+                    deletedForEveryone: true
+                });
+            });
+            await batch.commit();
+        } catch (e) {
+            console.error("Error deleting messages for everyone", e);
+        }
+    },
+
+    forwardMessages: async (msgIds, targetUserId) => {
+        const currentUser = window.ChatApp.getCurrentUser();
+        if (!currentUser) return;
+        try {
+            const messages = window.ChatApp.getAllMessages();
+            const msgsToForward = msgIds.map(id => messages.find(m => m.id === id)).filter(Boolean);
+            
+            // Sort by time before forwarding to preserve order
+            msgsToForward.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+            for (const msg of msgsToForward) {
+                // Forward original text/image
+                await window.ChatApp.saveMessage(targetUserId, msg.text || '', msg.imageUrl || null);
+            }
+        } catch (e) {
+            console.error("Error forwarding messages", e);
+        }
+    },
+
+    addReaction: async (msgId, emoji) => {
+        const currentUser = window.ChatApp.getCurrentUser();
+        if (!currentUser) return;
         try {
             const msgRef = doc(db, "messages", msgId);
-            await deleteDoc(msgRef);
+            const updateField = {};
+            updateField[`reactions.${currentUser.id}`] = emoji;
+            await updateDoc(msgRef, updateField);
         } catch (e) {
-            console.error("Error deleting message", e);
+            console.error("Error adding reaction", e);
         }
     },
     

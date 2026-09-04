@@ -36,6 +36,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const appContainer = document.querySelector('.app-container');
     
     let editingMessageId = null;
+    let selectedMessages = new Set();
+    let reactionTargetId = null;
+    let longPressTimer = null;
+
+    const selectionHeader = document.getElementById('selection-header');
+    const selectionCount = document.getElementById('selection-count');
+    const closeSelectionBtn = document.getElementById('close-selection-btn');
+    const actionEdit = document.getElementById('action-edit');
+    const actionCopy = document.getElementById('action-copy');
+    const actionForward = document.getElementById('action-forward');
+    const actionDelete = document.getElementById('action-delete');
+
+    const reactionPicker = document.getElementById('reaction-picker');
+    
+    const forwardModal = document.getElementById('forward-modal');
+    const closeForwardModal = document.getElementById('close-forward-modal');
+    const forwardSearchInput = document.getElementById('forward-search-input');
+    const forwardContactsList = document.getElementById('forward-contacts-list');
+
+    const deleteModal = document.getElementById('delete-modal');
+    const btnDeleteEveryone = document.getElementById('btn-delete-everyone');
+    const btnDeleteMe = document.getElementById('btn-delete-me');
+    const btnDeleteCancel = document.getElementById('btn-delete-cancel');
 
     // Image Viewer Modal Logic
     const imageViewerModal = document.getElementById('image-viewer-modal');
@@ -276,8 +299,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const messages = window.ChatApp.getAllMessages();
         const chatHistory = messages.filter(m => 
-            (m.senderId === currentUser.id && m.receiverId === activeChatPartner.id) ||
-            (m.senderId === activeChatPartner.id && m.receiverId === currentUser.id)
+            ((m.senderId === currentUser.id && m.receiverId === activeChatPartner.id) ||
+            (m.senderId === activeChatPartner.id && m.receiverId === currentUser.id)) &&
+            (!m.deletedFor || !m.deletedFor.includes(currentUser.id))
         );
         
         chatMessages.innerHTML = '';
@@ -294,40 +318,51 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const avatarHtml = !isSentByMe ? window.ChatApp.getAvatarHtml(userForMsg, "message-avatar") : '';
             
-            let actionsHtml = '';
-            if (isSentByMe) {
-                actionsHtml = `
-                    <div class="message-actions">
-                        <button class="action-icon edit" data-id="${msg.id}" title="Edit">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                        </button>
-                        <button class="action-icon delete" data-id="${msg.id}" title="Delete">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                        </button>
-                    </div>
-                `;
-            }
-            
             const editedTag = msg.edited ? `<span style="font-size: 0.65rem; font-style: italic; opacity: 0.8; margin-left: 4px;">(edited)</span>` : '';
             
-            const imageHtml = msg.imageUrl ? `<img src="${msg.imageUrl}" alt="Image" class="message-image">` : '';
+            let messageBodyHtml = '';
+            if (msg.deletedForEveryone) {
+                messageBodyHtml = `<div class="deleted-message">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+                    This message was deleted
+                </div>`;
+            } else {
+                const imageHtml = msg.imageUrl ? `<img src="${msg.imageUrl}" alt="Image" class="message-image">` : '';
+                messageBodyHtml = `
+                    ${imageHtml}
+                    ${msg.text ? `<div>${msg.text}</div>` : ''}
+                `;
+            }
+
+            let reactionBadgesHtml = '';
+            if (msg.reactions && Object.keys(msg.reactions).length > 0) {
+                reactionBadgesHtml = `<div class="reaction-badges">`;
+                const counts = {};
+                Object.values(msg.reactions).forEach(emoji => {
+                    counts[emoji] = (counts[emoji] || 0) + 1;
+                });
+                for (const emoji in counts) {
+                    reactionBadgesHtml += `<span>${emoji} ${counts[emoji] > 1 ? counts[emoji] : ''}</span>`;
+                }
+                reactionBadgesHtml += `</div>`;
+            }
             
             const readReceiptHtml = isSentByMe ? 
                 (msg.read ? `<span style="color: #34b7f1; margin-left: 4px; font-weight: bold; letter-spacing: -2px;">✓✓</span>` : 
                             `<span style="color: var(--text-secondary); margin-left: 4px; font-weight: bold;">✓</span>`) 
                 : '';
             
+            const isSelected = selectedMessages.has(msg.id) ? 'selected' : '';
+
             const messageHtml = `
-                <div class="message ${messageClass}">
+                <div class="message ${messageClass} ${isSelected}" data-id="${msg.id}">
                     ${avatarHtml}
                     <div class="message-content">
                         <div style="display: flex; align-items: center;">
-                            ${isSentByMe ? actionsHtml : ''}
                             <div class="message-bubble">
-                                ${imageHtml}
-                                ${msg.text ? `<div>${msg.text}</div>` : ''}
+                                ${messageBodyHtml}
+                                ${reactionBadgesHtml}
                             </div>
-                            ${!isSentByMe ? actionsHtml : ''}
                         </div>
                         <div class="message-time">${window.ChatApp.formatTime(msg.timestamp)}${editedTag}${readReceiptHtml}</div>
                     </div>
@@ -340,32 +375,225 @@ document.addEventListener('DOMContentLoaded', () => {
         bindMessageActions();
     };
     
+    const toggleMessageSelection = (msgId) => {
+        if (selectedMessages.has(msgId)) {
+            selectedMessages.delete(msgId);
+        } else {
+            selectedMessages.add(msgId);
+        }
+        window.ChatApp.renderMessages();
+    };
+
+    const showReactionPicker = (e, msgId) => {
+        reactionTargetId = msgId;
+        if (reactionPicker) {
+            reactionPicker.style.display = 'flex';
+            const x = Math.min(e.clientX, window.innerWidth - reactionPicker.offsetWidth - 10);
+            const y = Math.max(e.clientY - reactionPicker.offsetHeight - 10, 10);
+            reactionPicker.style.left = `${x}px`;
+            reactionPicker.style.top = `${y}px`;
+        }
+    };
+
     const bindMessageActions = () => {
-        document.querySelectorAll('.action-icon.edit').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const msgId = e.currentTarget.dataset.id;
-                const msg = window.ChatApp.getAllMessages().find(m => m.id === msgId);
-                if (msg) {
-                    editingMessageId = msgId;
-                    chatInput.value = msg.text;
-                    chatInput.focus();
-                    if (editBanner) editBanner.style.display = 'flex';
-                }
+        updateSelectionUI();
+        document.querySelectorAll('.message').forEach(msgEl => {
+            const msgId = msgEl.dataset.id;
+            
+            // Long Press
+            msgEl.addEventListener('touchstart', (e) => {
+                longPressTimer = setTimeout(() => {
+                    toggleMessageSelection(msgId);
+                }, 500);
+            }, {passive: true});
+            msgEl.addEventListener('touchend', () => { clearTimeout(longPressTimer); });
+            msgEl.addEventListener('touchmove', () => { clearTimeout(longPressTimer); });
+
+            // Right click
+            msgEl.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                toggleMessageSelection(msgId);
             });
-        });
-        
-        document.querySelectorAll('.action-icon.delete').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                if (confirm("Delete this message?")) {
-                    const msgId = e.currentTarget.dataset.id;
-                    window.ChatApp.deleteMessage(msgId);
-                    window.ChatApp.renderMessages();
-                    window.ChatApp.renderContacts();
+
+            // Click
+            msgEl.addEventListener('click', (e) => {
+                if (selectedMessages.size > 0) {
+                    toggleMessageSelection(msgId);
+                    e.stopPropagation();
+                } else if (!msgEl.classList.contains('sent')) {
+                    const bubble = msgEl.querySelector('.message-bubble');
+                    if (bubble && (e.target === bubble || bubble.contains(e.target))) {
+                        showReactionPicker(e, msgId);
+                        e.stopPropagation();
+                    }
                 }
             });
         });
     };
+
+    const updateSelectionUI = () => {
+        if (selectedMessages.size > 0) {
+            if(selectionHeader) selectionHeader.style.display = 'flex';
+            if(selectionCount) selectionCount.textContent = selectedMessages.size;
+            
+            if (selectedMessages.size === 1) {
+                const msgId = Array.from(selectedMessages)[0];
+                const msg = window.ChatApp.getAllMessages().find(m => m.id === msgId);
+                if (msg && msg.senderId === window.ChatApp.getCurrentUser().id && !msg.imageUrl && !msg.deletedForEveryone) {
+                    if(actionEdit) actionEdit.style.display = 'flex';
+                } else {
+                    if(actionEdit) actionEdit.style.display = 'none';
+                }
+            } else {
+                if(actionEdit) actionEdit.style.display = 'none';
+            }
+        } else {
+            if(selectionHeader) selectionHeader.style.display = 'none';
+        }
+    };
+
+    // Bind Advanced Actions outside
+    document.addEventListener('click', () => {
+        if (reactionPicker) reactionPicker.style.display = 'none';
+    });
+
+    if (closeSelectionBtn) {
+        closeSelectionBtn.addEventListener('click', () => {
+            selectedMessages.clear();
+            window.ChatApp.renderMessages();
+        });
+    }
+
+    if (actionCopy) {
+        actionCopy.addEventListener('click', () => {
+            const msgs = window.ChatApp.getAllMessages().filter(m => selectedMessages.has(m.id));
+            msgs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            const textToCopy = msgs.map(m => m.text).filter(bool => bool).join('\n');
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                window.showToast('Copied to clipboard', 'success');
+                selectedMessages.clear();
+                window.ChatApp.renderMessages();
+            });
+        });
+    }
+
+    if (actionEdit) {
+        actionEdit.addEventListener('click', () => {
+            if (selectedMessages.size === 1) {
+                const msgId = Array.from(selectedMessages)[0];
+                const msg = window.ChatApp.getAllMessages().find(m => m.id === msgId);
+                if (msg) {
+                    editingMessageId = msgId;
+                    const chatInput = document.querySelector('.chat-input');
+                    const editBanner = document.getElementById('edit-banner');
+                    if (chatInput) {
+                        chatInput.value = msg.text;
+                        chatInput.focus();
+                    }
+                    if (editBanner) editBanner.style.display = 'flex';
+                }
+                selectedMessages.clear();
+                window.ChatApp.renderMessages();
+            }
+        });
+    }
+
+    if (actionDelete) {
+        actionDelete.addEventListener('click', () => {
+            const msgs = window.ChatApp.getAllMessages().filter(m => selectedMessages.has(m.id));
+            const anySentByOther = msgs.some(m => m.senderId !== window.ChatApp.getCurrentUser().id);
+            if (anySentByOther) {
+                if(btnDeleteEveryone) btnDeleteEveryone.style.display = 'none';
+            } else {
+                if(btnDeleteEveryone) btnDeleteEveryone.style.display = 'block';
+            }
+            if(deleteModal) deleteModal.classList.add('active');
+        });
+    }
+
+    if (btnDeleteCancel) {
+        btnDeleteCancel.addEventListener('click', () => {
+            if(deleteModal) deleteModal.classList.remove('active');
+        });
+    }
     
+    if (btnDeleteMe) {
+        btnDeleteMe.addEventListener('click', () => {
+            window.ChatApp.deleteMessagesForMe(Array.from(selectedMessages));
+            if(deleteModal) deleteModal.classList.remove('active');
+            selectedMessages.clear();
+            updateSelectionUI();
+            window.ChatApp.renderMessages();
+        });
+    }
+
+    if (btnDeleteEveryone) {
+        btnDeleteEveryone.addEventListener('click', () => {
+            window.ChatApp.deleteMessagesForEveryone(Array.from(selectedMessages));
+            if(deleteModal) deleteModal.classList.remove('active');
+            selectedMessages.clear();
+            updateSelectionUI();
+            window.ChatApp.renderMessages();
+        });
+    }
+
+    const renderForwardContacts = () => {
+        if (!forwardContactsList) return;
+        const otherUsers = window.ChatApp.getOtherUsers();
+        let query = forwardSearchInput ? forwardSearchInput.value.toLowerCase().trim() : '';
+        
+        const filtered = otherUsers.filter(user => 
+            (user.name && user.name.toLowerCase().includes(query)) || 
+            (user.username && user.username.toLowerCase().includes(query))
+        );
+
+        forwardContactsList.innerHTML = '';
+        filtered.forEach(user => {
+            const item = document.createElement('div');
+            item.className = 'contact-item';
+            item.innerHTML = window.ChatApp.getAvatarHtml(user, "") + `<div class="contact-info"><div class="contact-name">${user.name}</div></div>`;
+            item.addEventListener('click', () => {
+                if (confirm(`Forward to ${user.name}?`)) {
+                    window.ChatApp.forwardMessages(Array.from(selectedMessages), user.id);
+                    if(forwardModal) forwardModal.classList.remove('active');
+                    selectedMessages.clear();
+                    updateSelectionUI();
+                    window.ChatApp.renderMessages();
+                    window.showToast('Messages forwarded', 'success');
+                }
+            });
+            forwardContactsList.appendChild(item);
+        });
+    };
+
+    if (actionForward) {
+        actionForward.addEventListener('click', () => {
+            if(forwardModal) forwardModal.classList.add('active');
+            renderForwardContacts();
+        });
+    }
+
+    if (closeForwardModal) {
+        closeForwardModal.addEventListener('click', () => {
+            if(forwardModal) forwardModal.classList.remove('active');
+        });
+    }
+
+    if (forwardSearchInput) {
+        forwardSearchInput.addEventListener('input', renderForwardContacts);
+    }
+
+    document.querySelectorAll('.reaction-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (reactionTargetId) {
+                window.ChatApp.addReaction(reactionTargetId, btn.dataset.emoji);
+                if(reactionPicker) reactionPicker.style.display = 'none';
+                reactionTargetId = null;
+            }
+        });
+    });
+
     const cancelEditMode = () => {
         editingMessageId = null;
         if (chatInput) chatInput.value = '';
