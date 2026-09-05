@@ -36,6 +36,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const appContainer = document.querySelector('.app-container');
     
     let editingMessageId = null;
+    let replyingMessageId = null;
+    let selectedChats = new Set();
+    let chatListLongPressTimer = null;
+
+    const actionReply = document.getElementById('action-reply');
+    const replyBanner = document.getElementById('reply-banner');
+    const replyBannerName = document.getElementById('reply-banner-name');
+    const replyBannerText = document.getElementById('reply-banner-text');
+    const cancelReplyBtn = document.getElementById('cancel-reply-btn');
+    
+    const chatListSelectionHeader = document.getElementById('chat-list-selection-header');
+    const chatListSelectionCount = document.getElementById('chat-list-selection-count');
+    const closeChatListSelectionBtn = document.getElementById('close-chat-list-selection-btn');
+    const actionDeleteChatList = document.getElementById('action-delete-chat-list');
+    
+    const actionClearChat = document.getElementById('action-clear-chat');
+    const actionBlock = document.getElementById('action-block');
+    
+    const muteNotificationsToggle = document.getElementById('mute-notifications-toggle');
+    const disappearingMessagesSelect = document.getElementById('disappearing-messages-select');
     let selectedMessages = new Set();
     let reactionTargetId = null;
     let longPressTimer = null;
@@ -167,34 +187,46 @@ document.addEventListener('DOMContentLoaded', () => {
             );
         }
 
-        if (filteredUsers.length === 0) {
-            contactsList.innerHTML = '<div style="padding: 1rem; color: var(--text-secondary); text-align: center;">No contacts found matching your search.</div>';
-            return;
-        }
-
         const enrichedUsers = filteredUsers.map(user => {
             const chatHistory = messages.filter(m => 
-                (m.senderId === currentUser.id && m.receiverId === user.id) ||
-                (m.senderId === user.id && m.receiverId === currentUser.id)
+                ((m.senderId === currentUser.id && m.receiverId === user.id) ||
+                (m.senderId === user.id && m.receiverId === currentUser.id)) &&
+                (!m.deletedFor || !m.deletedFor.includes(currentUser.id))
             );
             const lastMessage = chatHistory.length > 0 ? chatHistory[chatHistory.length - 1] : null;
             const unreadCount = chatHistory.filter(m => m.senderId === user.id && m.receiverId === currentUser.id && !m.read).length;
             return { ...user, lastMessage, unreadCount };
         });
-        
+
+        // Filter out empty chats from the main list unless the user is searching
+        let usersToDisplay = enrichedUsers;
+        if (!searchQuery) {
+            usersToDisplay = enrichedUsers.filter(user => user.lastMessage !== null);
+        }
+
+        if (usersToDisplay.length === 0) {
+            if (searchQuery) {
+                contactsList.innerHTML = '<div style="padding: 1rem; color: var(--text-secondary); text-align: center;">No contacts found matching your search.</div>';
+            } else {
+                contactsList.innerHTML = '<div style="padding: 1rem; color: var(--text-secondary); text-align: center;">No active chats. Search for a user to start chatting!</div>';
+            }
+            return;
+        }
+
         // Sort: Latest message first
-        enrichedUsers.sort((a, b) => {
+        usersToDisplay.sort((a, b) => {
             if (!a.lastMessage && !b.lastMessage) return 0;
             if (!a.lastMessage) return 1;
             if (!b.lastMessage) return -1;
             return new Date(b.lastMessage.timestamp) - new Date(a.lastMessage.timestamp);
         });
 
-        enrichedUsers.forEach(user => {
+        usersToDisplay.forEach(user => {
             const lastMessage = user.lastMessage;
             const contactItem = document.createElement('div');
             const isActive = window.ChatApp.activeChatPartner && window.ChatApp.activeChatPartner.id === user.id;
-            contactItem.className = `contact-item ${isActive ? 'active' : ''}`;
+            const isSelected = selectedChats.has(user.id) ? 'selected' : '';
+            contactItem.className = `contact-item ${isActive ? 'active' : ''} ${isSelected}`;
             
             const isOnline = user.lastActive && (new Date() - new Date(user.lastActive)) < 2 * 60000;
             const avatarHtml = window.ChatApp.getAvatarHtml(user, isOnline ? "online" : "");
@@ -226,13 +258,34 @@ document.addEventListener('DOMContentLoaded', () => {
             
             contactItem.innerHTML = avatarHtml + infoHtml;
             
-            contactItem.addEventListener('click', () => {
+            // Long Press
+            contactItem.addEventListener('touchstart', (e) => {
+                chatListLongPressTimer = setTimeout(() => {
+                    toggleChatSelection(user.id);
+                }, 500);
+            }, {passive: true});
+            contactItem.addEventListener('touchend', () => { clearTimeout(chatListLongPressTimer); });
+            contactItem.addEventListener('touchmove', () => { clearTimeout(chatListLongPressTimer); });
+
+            // Right click
+            contactItem.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                toggleChatSelection(user.id);
+            });
+            
+            contactItem.addEventListener('click', (e) => {
+                if (selectedChats.size > 0) {
+                    toggleChatSelection(user.id);
+                    e.stopPropagation();
+                    return;
+                }
+
                 if (appContainer && !appContainer.classList.contains('mobile-chat-active')) {
                     history.pushState({ chatOpen: true }, '');
                 }
 
                 window.ChatApp.activeChatPartner = user;
-                if (contactInfoSidebar && contactInfoSidebar.classList.contains('active')) {
+                if (typeof populateContactInfo !== 'undefined' && contactInfoSidebar && contactInfoSidebar.classList.contains('active')) {
                     populateContactInfo(user);
                 }
                 
@@ -242,7 +295,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 // Cancel edit mode if switching chats
-                cancelEditMode();
+                if (typeof cancelEditMode === 'function') {
+                    cancelEditMode();
+                }
                 
                 // Add class for mobile responsiveness
                 if (appContainer) appContainer.classList.add('mobile-chat-active');
@@ -320,6 +375,20 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const editedTag = msg.edited ? `<span style="font-size: 0.65rem; font-style: italic; opacity: 0.8; margin-left: 4px;">(edited)</span>` : '';
             
+            let replyPreviewHtml = '';
+            if (msg.replyTo) {
+                const originalMsg = messages.find(m => m.id === msg.replyTo);
+                if (originalMsg) {
+                    const originalSender = originalMsg.senderId === currentUser.id ? currentUser : activeChatPartner;
+                    replyPreviewHtml = `
+                        <div style="background: rgba(0,0,0,0.05); padding: 4px 8px; border-left: 4px solid var(--accent); border-radius: 4px; margin-bottom: 4px; font-size: 0.8rem; cursor: pointer;">
+                            <div style="font-weight: 600; color: var(--accent); margin-bottom: 2px;">${originalSender.name}</div>
+                            <div style="color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${originalMsg.text || 'Photo'}</div>
+                        </div>
+                    `;
+                }
+            }
+            
             let messageBodyHtml = '';
             if (msg.deletedForEveryone) {
                 messageBodyHtml = `<div class="deleted-message">
@@ -329,6 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 const imageHtml = msg.imageUrl ? `<img src="${msg.imageUrl}" alt="Image" class="message-image">` : '';
                 messageBodyHtml = `
+                    ${replyPreviewHtml}
                     ${imageHtml}
                     ${msg.text ? `<div>${msg.text}</div>` : ''}
                 `;
@@ -373,6 +443,25 @@ document.addEventListener('DOMContentLoaded', () => {
         
         chatMessages.scrollTop = chatMessages.scrollHeight;
         bindMessageActions();
+    };
+    
+    const toggleChatSelection = (partnerId) => {
+        if (selectedChats.has(partnerId)) {
+            selectedChats.delete(partnerId);
+        } else {
+            selectedChats.add(partnerId);
+        }
+        updateChatListSelectionUI();
+        window.ChatApp.renderContacts();
+    };
+
+    const updateChatListSelectionUI = () => {
+        if (selectedChats.size > 0) {
+            if(chatListSelectionHeader) chatListSelectionHeader.style.display = 'flex';
+            if(chatListSelectionCount) chatListSelectionCount.textContent = selectedChats.size;
+        } else {
+            if(chatListSelectionHeader) chatListSelectionHeader.style.display = 'none';
+        }
     };
     
     const toggleMessageSelection = (msgId) => {
@@ -444,8 +533,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     if(actionEdit) actionEdit.style.display = 'none';
                 }
+                if(actionReply) actionReply.style.display = 'flex';
             } else {
                 if(actionEdit) actionEdit.style.display = 'none';
+                if(actionReply) actionReply.style.display = 'none';
             }
         } else {
             if(selectionHeader) selectionHeader.style.display = 'none';
@@ -600,9 +691,34 @@ document.addEventListener('DOMContentLoaded', () => {
         if (editBanner) editBanner.style.display = 'none';
     };
 
+    const cancelReplyMode = () => {
+        replyingMessageId = null;
+        if (replyBanner) replyBanner.style.display = 'none';
+    };
+
+    const checkBlockStatus = () => {
+        if (!window.ChatApp.activeChatPartner) return false;
+        const currentUser = window.ChatApp.getCurrentUser();
+        const partnerId = window.ChatApp.activeChatPartner.id;
+        
+        if (currentUser && currentUser.blockedUsers && currentUser.blockedUsers.includes(partnerId)) {
+            window.showToast("You blocked this contact. Unblock to send messages.", "error");
+            return true; // blocked
+        }
+        
+        const latestPartner = window.ChatApp.getOtherUsers().find(u => u.id === partnerId);
+        if (latestPartner && latestPartner.blockedUsers && latestPartner.blockedUsers.includes(currentUser.id)) {
+            window.showToast("Message failed to send.", "error");
+            return true; // blocked
+        }
+        
+        return false;
+    };
+
     // Chat Actions
     const handleSend = () => {
         if (!window.ChatApp.activeChatPartner || !chatInput || !chatInput.value.trim()) return;
+        if (checkBlockStatus()) return;
         
         const text = chatInput.value.trim();
         
@@ -610,8 +726,9 @@ document.addEventListener('DOMContentLoaded', () => {
             window.ChatApp.editMessage(editingMessageId, text);
             cancelEditMode();
         } else {
-            window.ChatApp.saveMessage(window.ChatApp.activeChatPartner.id, text);
+            window.ChatApp.saveMessage(window.ChatApp.activeChatPartner.id, text, null, replyingMessageId);
             chatInput.value = '';
+            cancelReplyMode();
         }
         
         window.ChatApp.renderMessages();
@@ -627,6 +744,86 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cancelEditBtn) {
         cancelEditBtn.addEventListener('click', cancelEditMode);
     }
+
+
+
+    if (cancelReplyBtn) {
+        cancelReplyBtn.addEventListener('click', cancelReplyMode);
+    }
+
+    if (actionReply) {
+        actionReply.addEventListener('click', () => {
+            if (selectedMessages.size === 1) {
+                const msgId = Array.from(selectedMessages)[0];
+                const msg = window.ChatApp.getAllMessages().find(m => m.id === msgId);
+                if (msg) {
+                    replyingMessageId = msgId;
+                    if (replyBanner) {
+                        const sender = msg.senderId === window.ChatApp.getCurrentUser().id ? window.ChatApp.getCurrentUser() : window.ChatApp.getOtherUsers().find(u => u.id === msg.senderId);
+                        if (replyBannerName) replyBannerName.textContent = sender ? sender.name : 'Unknown';
+                        if (replyBannerText) replyBannerText.textContent = msg.text || 'Photo';
+                        replyBanner.style.display = 'block';
+                    }
+                    if (chatInput) chatInput.focus();
+                }
+                selectedMessages.clear();
+                window.ChatApp.renderMessages();
+            }
+        });
+    }
+
+    if (actionClearChat) {
+        actionClearChat.addEventListener('click', () => {
+            if (window.ChatApp.activeChatPartner && confirm('Clear this entire chat history?')) {
+                window.ChatApp.deleteEntireChat(window.ChatApp.activeChatPartner.id);
+                chatOptionsMenu.classList.remove('show');
+                window.ChatApp.renderMessages();
+            }
+        });
+    }
+
+    if (actionBlock) {
+        actionBlock.addEventListener('click', () => {
+            if (window.ChatApp.activeChatPartner) {
+                const partnerId = window.ChatApp.activeChatPartner.id;
+                const currentUser = window.ChatApp.getCurrentUser();
+                const isBlocked = currentUser && currentUser.blockedUsers && currentUser.blockedUsers.includes(partnerId);
+                
+                if (isBlocked) {
+                    if (confirm(`Unblock ${window.ChatApp.activeChatPartner.name}?`)) {
+                        window.ChatApp.unblockUser(partnerId);
+                        window.showToast(`${window.ChatApp.activeChatPartner.name} unblocked`, 'success');
+                    }
+                } else {
+                    if (confirm(`Block ${window.ChatApp.activeChatPartner.name}? They won't be able to message you.`)) {
+                        window.ChatApp.blockUser(partnerId);
+                        window.showToast(`${window.ChatApp.activeChatPartner.name} blocked`, 'success');
+                    }
+                }
+                chatOptionsMenu.classList.remove('show');
+            }
+        });
+    }
+
+    if (closeChatListSelectionBtn) {
+        closeChatListSelectionBtn.addEventListener('click', () => {
+            selectedChats.clear();
+            updateChatListSelectionUI();
+            window.ChatApp.renderContacts();
+        });
+    }
+
+    if (actionDeleteChatList) {
+        actionDeleteChatList.addEventListener('click', () => {
+            if (selectedChats.size > 0 && confirm('Delete selected chats?')) {
+                window.ChatApp.deleteMultipleChats(Array.from(selectedChats));
+                selectedChats.clear();
+                updateChatListSelectionUI();
+                window.ChatApp.renderContacts();
+            }
+        });
+    }
+
     
     // Image Upload Logic
     if (btnAttachImage && chatImageUpload) {
@@ -637,6 +834,11 @@ document.addEventListener('DOMContentLoaded', () => {
         chatImageUpload.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
+            
+            if (checkBlockStatus()) {
+                chatImageUpload.value = '';
+                return;
+            }
 
             const originalHtml = btnAttachImage.innerHTML;
             btnAttachImage.innerHTML = `<svg class="spinner" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>`;
@@ -759,6 +961,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (chatOptionsBtn && chatOptionsMenu) {
         chatOptionsBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (window.ChatApp.activeChatPartner && actionBlock) {
+                const currentUser = window.ChatApp.getCurrentUser();
+                const isBlocked = currentUser && currentUser.blockedUsers && currentUser.blockedUsers.includes(window.ChatApp.activeChatPartner.id);
+                actionBlock.textContent = isBlocked ? 'Unblock' : 'Block';
+            }
             chatOptionsMenu.classList.toggle('show');
         });
         

@@ -33,8 +33,20 @@ window.ChatApp = {
     
     // Messages
     getAllMessages: () => window.ChatApp._messages,
-    saveMessage: async (receiverId, text, imageUrl = null) => {
+    saveMessage: async (receiverId, text, imageUrl = null, replyTo = null) => {
         const currentUser = window.ChatApp.getCurrentUser();
+        
+        // System-wide block check
+        if (currentUser.blockedUsers && currentUser.blockedUsers.includes(receiverId)) {
+            if (window.showToast) window.showToast("You blocked this contact. Unblock to send messages.", "error");
+            return;
+        }
+        const receiverUser = window.ChatApp._users.find(u => u.id === receiverId);
+        if (receiverUser && receiverUser.blockedUsers && receiverUser.blockedUsers.includes(currentUser.id)) {
+            if (window.showToast) window.showToast("Message failed to send.", "error");
+            return;
+        }
+
         const newMessage = {
             senderId: currentUser.id,
             receiverId: receiverId,
@@ -43,6 +55,7 @@ window.ChatApp = {
             read: false
         };
         if (imageUrl) newMessage.imageUrl = imageUrl;
+        if (replyTo) newMessage.replyTo = replyTo;
         try {
             await addDoc(collection(db, "messages"), newMessage);
         } catch(e) {
@@ -148,6 +161,110 @@ window.ChatApp = {
         }
     },
     
+    
+    // Chat Settings
+    getChatSettings: () => window.ChatApp._chatSettings || {},
+    
+    updateChatSetting: async (partnerId, updates) => {
+        const currentUser = window.ChatApp.getCurrentUser();
+        if (!currentUser) return;
+        const chatId = [currentUser.id, partnerId].sort().join('_');
+        
+        try {
+            const chatSettingsRef = doc(db, "chat_settings", chatId);
+            
+            // We use updateDoc. If it doesn't exist, we use setDoc with merge.
+            // Let's import setDoc dynamically or assume updateDoc works?
+            // Safer to use setDoc with merge: true which behaves like update/create
+            const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js");
+            await setDoc(chatSettingsRef, updates, { merge: true });
+        } catch (e) {
+            console.error("Error updating chat setting", e);
+        }
+    },
+    
+    deleteEntireChat: async (partnerId) => {
+        const currentUser = window.ChatApp.getCurrentUser();
+        if (!currentUser) return;
+        try {
+            const batch = writeBatch(db);
+            const messages = window.ChatApp.getAllMessages().filter(m => 
+                (m.senderId === currentUser.id && m.receiverId === partnerId) ||
+                (m.senderId === partnerId && m.receiverId === currentUser.id)
+            );
+            
+            messages.forEach(msg => {
+                const msgRef = doc(db, "messages", msg.id);
+                batch.delete(msgRef);
+            });
+            await batch.commit();
+        } catch (e) {
+            console.error("Error deleting entire chat", e);
+        }
+    },
+
+    deleteMultipleChats: async (partnerIds) => {
+        const currentUser = window.ChatApp.getCurrentUser();
+        if (!currentUser) return;
+        try {
+            const batch = writeBatch(db);
+            const messages = window.ChatApp.getAllMessages().filter(m => 
+                partnerIds.includes(m.senderId) || partnerIds.includes(m.receiverId)
+            );
+            // filter for messages that involve the current user
+            const myMessages = messages.filter(m => m.senderId === currentUser.id || m.receiverId === currentUser.id);
+            
+            myMessages.forEach(msg => {
+                const msgRef = doc(db, "messages", msg.id);
+                batch.delete(msgRef);
+            });
+            await batch.commit();
+        } catch (e) {
+            console.error("Error deleting multiple chats", e);
+        }
+    },
+
+    blockUser: async (partnerId) => {
+        const currentUser = window.ChatApp.getCurrentUser();
+        if (!currentUser) return;
+        try {
+            const userRef = doc(db, "users", currentUser.id);
+            // We need arrayUnion, it's already imported
+            await updateDoc(userRef, {
+                blockedUsers: arrayUnion(partnerId)
+            });
+            // Update current user in local storage so it reflects immediately
+            const updatedUser = { ...currentUser };
+            if (!updatedUser.blockedUsers) updatedUser.blockedUsers = [];
+            if (!updatedUser.blockedUsers.includes(partnerId)) {
+                updatedUser.blockedUsers.push(partnerId);
+                window.ChatApp.setCurrentUser(updatedUser);
+            }
+        } catch (e) {
+            console.error("Error blocking user", e);
+        }
+    },
+
+    unblockUser: async (partnerId) => {
+        const currentUser = window.ChatApp.getCurrentUser();
+        if (!currentUser) return;
+        try {
+            const userRef = doc(db, "users", currentUser.id);
+            const { arrayRemove } = await import("https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js");
+            await updateDoc(userRef, {
+                blockedUsers: arrayRemove(partnerId)
+            });
+            // Update local
+            const updatedUser = { ...currentUser };
+            if (updatedUser.blockedUsers) {
+                updatedUser.blockedUsers = updatedUser.blockedUsers.filter(id => id !== partnerId);
+                window.ChatApp.setCurrentUser(updatedUser);
+            }
+        } catch (e) {
+            console.error("Error unblocking user", e);
+        }
+    },
+
     // Utilities
     formatTime: (isoString) => {
         if (!isoString) return '';

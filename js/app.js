@@ -104,6 +104,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.ChatApp.renderContacts) window.ChatApp.renderContacts();
     });
 
+        // 1.5 Chat Settings Listener
+    const qSettings = query(collection(db, "chat_settings"));
+    onSnapshot(qSettings, (snapshot) => {
+        const settings = {};
+        snapshot.forEach((doc) => {
+            settings[doc.id] = doc.data();
+        });
+        window.ChatApp._chatSettings = settings;
+    });
+
     // 2. Messages Listener
     let initialLoad = true;
     const qMessages = query(collection(db, "messages"), orderBy("timestamp", "asc"));
@@ -114,8 +124,42 @@ document.addEventListener('DOMContentLoaded', () => {
             messages.push({ ...doc.data(), id: doc.id });
         });
         
+        
+        // Clean up disappearing messages
+        const validMessages = [];
+        const toDeleteIds = [];
+        const now = Date.now();
+        
+        messages.forEach(msg => {
+            const chatId = [msg.senderId, msg.receiverId].sort().join('_');
+            const settings = (window.ChatApp._chatSettings && window.ChatApp._chatSettings[chatId]) || {};
+            
+            if (settings.disappearing && settings.disappearing !== 'off') {
+                const msgTime = new Date(msg.timestamp).getTime();
+                let expiryMs = 0;
+                if (settings.disappearing === '24h') expiryMs = 24 * 60 * 60 * 1000;
+                else if (settings.disappearing === '7d') expiryMs = 7 * 24 * 60 * 60 * 1000;
+                else if (settings.disappearing === '90d') expiryMs = 90 * 24 * 60 * 60 * 1000;
+                
+                if (now - msgTime > expiryMs) {
+                    toDeleteIds.push(msg.id);
+                    return; // Skip adding to validMessages
+                }
+            }
+            validMessages.push(msg);
+        });
+        
+        // Background deletion of expired messages (using writeBatch could be better but deleteDoc is simple)
+        if (toDeleteIds.length > 0 && !initialLoad) {
+            toDeleteIds.forEach(async (id) => {
+                try {
+                    await deleteDoc(doc(db, "messages", id));
+                } catch (e) {}
+            });
+        }
+        
         const oldLength = window.ChatApp._messages.length;
-        window.ChatApp._messages = messages;
+        window.ChatApp._messages = validMessages;
         
         // Notification logic based on new messages
         if (!initialLoad) {
@@ -125,7 +169,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const activePartnerId = window.ChatApp.activeChatPartner ? window.ChatApp.activeChatPartner.id : null;
                     
                     if (latestMsg.receiverId === currentUser.id && !latestMsg.read) {
-                        if (activePartnerId !== latestMsg.senderId || document.hidden) {
+                        const chatId = [currentUser.id, latestMsg.senderId].sort().join('_');
+                        const isMuted = window.ChatApp._chatSettings && window.ChatApp._chatSettings[chatId] && window.ChatApp._chatSettings[chatId].muted;
+                        
+                        if (!isMuted && (activePartnerId !== latestMsg.senderId || document.hidden)) {
                             playNotificationSound();
                             
                             if (window.Notification && Notification.permission === "granted") {
