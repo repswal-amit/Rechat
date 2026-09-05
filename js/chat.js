@@ -21,6 +21,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const contactInfoUsername = document.getElementById('contact-info-username');
     const contactInfoBio = document.getElementById('contact-info-bio');
 
+    const newGroupBtn = document.getElementById('new-group-btn');
+    const newGroupModal = document.getElementById('new-group-modal');
+    const closeNewGroupModalBtn = document.getElementById('close-new-group-modal');
+    const newGroupNameInput = document.getElementById('new-group-name');
+    const newGroupContactsList = document.getElementById('new-group-contacts-list');
+    const btnCreateGroup = document.getElementById('btn-create-group');
+    
+    const groupInfoSidebar = document.getElementById('group-info-sidebar');
+    const closeGroupInfoBtn = document.getElementById('close-group-info-btn');
+    const groupInfoAvatar = document.getElementById('group-info-avatar');
+    const groupInfoName = document.getElementById('group-info-name');
+    const groupInfoMembersCount = document.getElementById('group-info-members-count');
+    const groupMembersList = document.getElementById('group-members-list');
+    const btnAddMember = document.getElementById('btn-add-member');
+    
+    const actionLeaveGroup = document.getElementById('action-leave-group');
+
     const editBanner = document.getElementById('edit-banner');
     const cancelEditBtn = document.getElementById('cancel-edit-btn');
     
@@ -170,41 +187,60 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!contactsList) return;
         const currentUser = window.ChatApp.getCurrentUser();
         const otherUsers = window.ChatApp.getOtherUsers();
+        const groups = window.ChatApp.getGroups();
         const messages = window.ChatApp.getAllMessages();
         
         contactsList.innerHTML = '';
         
-        if (otherUsers.length === 0) {
-            contactsList.innerHTML = '<div style="padding: 1rem; color: var(--text-secondary); text-align: center;">No other users registered. Open a new tab and register a new user!</div>';
+        const allContacts = [...otherUsers, ...groups];
+        
+        if (allContacts.length === 0) {
+            contactsList.innerHTML = '<div style="padding: 1rem; color: var(--text-secondary); text-align: center;">No other users or groups found.</div>';
             return;
         }
 
-        let filteredUsers = otherUsers;
+        let filteredContacts = allContacts;
         if (searchQuery) {
-            filteredUsers = otherUsers.filter(user => 
-                (user.name && user.name.toLowerCase().includes(searchQuery)) || 
-                (user.username && user.username.toLowerCase().includes(searchQuery))
+            filteredContacts = allContacts.filter(contact => 
+                (contact.name && contact.name.toLowerCase().includes(searchQuery)) || 
+                (contact.username && contact.username.toLowerCase().includes(searchQuery))
             );
         }
 
-        const enrichedUsers = filteredUsers.map(user => {
-            const chatHistory = messages.filter(m => 
-                ((m.senderId === currentUser.id && m.receiverId === user.id) ||
-                (m.senderId === user.id && m.receiverId === currentUser.id)) &&
-                (!m.deletedFor || !m.deletedFor.includes(currentUser.id))
-            );
+        const enrichedContacts = filteredContacts.map(contact => {
+            let chatHistory;
+            if (contact.type === 'group') {
+                chatHistory = messages.filter(m => 
+                    m.receiverId === contact.id && 
+                    (!m.deletedFor || !m.deletedFor.includes(currentUser.id))
+                );
+            } else {
+                chatHistory = messages.filter(m => 
+                    ((m.senderId === currentUser.id && m.receiverId === contact.id) ||
+                    (m.senderId === contact.id && m.receiverId === currentUser.id)) &&
+                    (!m.deletedFor || !m.deletedFor.includes(currentUser.id))
+                );
+            }
+            
             const lastMessage = chatHistory.length > 0 ? chatHistory[chatHistory.length - 1] : null;
-            const unreadCount = chatHistory.filter(m => m.senderId === user.id && m.receiverId === currentUser.id && !m.read).length;
-            return { ...user, lastMessage, unreadCount };
+            
+            let unreadCount = 0;
+            if (contact.type === 'group') {
+                unreadCount = chatHistory.filter(m => !m.readBy || !m.readBy.includes(currentUser.id)).length;
+            } else {
+                unreadCount = chatHistory.filter(m => m.senderId === contact.id && m.receiverId === currentUser.id && !m.read).length;
+            }
+            
+            return { ...contact, lastMessage, unreadCount };
         });
 
         // Filter out empty chats from the main list unless the user is searching
-        let usersToDisplay = enrichedUsers;
+        let contactsToDisplay = enrichedContacts;
         if (!searchQuery) {
-            usersToDisplay = enrichedUsers.filter(user => user.lastMessage !== null);
+            contactsToDisplay = enrichedContacts.filter(contact => contact.lastMessage !== null || contact.type === 'group');
         }
 
-        if (usersToDisplay.length === 0) {
+        if (contactsToDisplay.length === 0) {
             if (searchQuery) {
                 contactsList.innerHTML = '<div style="padding: 1rem; color: var(--text-secondary); text-align: center;">No contacts found matching your search.</div>';
             } else {
@@ -213,24 +249,23 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Sort: Latest message first
-        usersToDisplay.sort((a, b) => {
-            if (!a.lastMessage && !b.lastMessage) return 0;
-            if (!a.lastMessage) return 1;
-            if (!b.lastMessage) return -1;
-            return new Date(b.lastMessage.timestamp) - new Date(a.lastMessage.timestamp);
+        // Sort: Latest message first, empty groups fall back to createdAt
+        contactsToDisplay.sort((a, b) => {
+            const timeA = a.lastMessage ? new Date(a.lastMessage.timestamp) : (a.type === 'group' ? new Date(a.createdAt) : new Date(0));
+            const timeB = b.lastMessage ? new Date(b.lastMessage.timestamp) : (b.type === 'group' ? new Date(b.createdAt) : new Date(0));
+            return timeB - timeA;
         });
 
-        usersToDisplay.forEach(user => {
-            const lastMessage = user.lastMessage;
+        contactsToDisplay.forEach(contact => {
+            const lastMessage = contact.lastMessage;
             const contactItem = document.createElement('div');
-            const isActive = window.ChatApp.activeChatPartner && window.ChatApp.activeChatPartner.id === user.id;
-            const isSelected = selectedChats.has(user.id) ? 'selected' : '';
+            const isActive = window.ChatApp.activeChatPartner && window.ChatApp.activeChatPartner.id === contact.id;
+            const isSelected = selectedChats.has(contact.id) ? 'selected' : '';
             contactItem.className = `contact-item ${isActive ? 'active' : ''} ${isSelected}`;
             
-            const isOnline = user.lastActive && (new Date() - new Date(user.lastActive)) < 2 * 60000;
-            const avatarHtml = window.ChatApp.getAvatarHtml(user, isOnline ? "online" : "");
-            const unreadBadge = user.unreadCount > 0 ? `<span class="unread-badge">${user.unreadCount}</span>` : '';
+            const isOnline = contact.lastActive && (new Date() - new Date(contact.lastActive)) < 2 * 60000;
+            const avatarHtml = window.ChatApp.getAvatarHtml(contact, isOnline ? "online" : "");
+            const unreadBadge = contact.unreadCount > 0 ? `<span class="unread-badge">${contact.unreadCount}</span>` : '';
             let previewHtml = 'No messages yet';
             if (lastMessage) {
                 if (lastMessage.imageUrl) {
@@ -246,7 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const infoHtml = `
                 <div class="contact-info">
                     <div class="contact-header">
-                        <span class="contact-name">${user.name}</span>
+                        <span class="contact-name">${contact.name}</span>
                         <div style="display: flex; align-items: center; gap: 6px;">
                             ${unreadBadge}
                             <span class="contact-time">${lastMessage ? window.ChatApp.formatTime(lastMessage.timestamp) : ''}</span>
@@ -261,7 +296,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Long Press
             contactItem.addEventListener('touchstart', (e) => {
                 chatListLongPressTimer = setTimeout(() => {
-                    toggleChatSelection(user.id);
+                    toggleChatSelection(contact.id);
                 }, 500);
             }, {passive: true});
             contactItem.addEventListener('touchend', () => { clearTimeout(chatListLongPressTimer); });
@@ -270,12 +305,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Right click
             contactItem.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
-                toggleChatSelection(user.id);
+                toggleChatSelection(contact.id);
             });
             
             contactItem.addEventListener('click', (e) => {
                 if (selectedChats.size > 0) {
-                    toggleChatSelection(user.id);
+                    toggleChatSelection(contact.id);
                     e.stopPropagation();
                     return;
                 }
@@ -284,14 +319,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     history.pushState({ chatOpen: true }, '');
                 }
 
-                window.ChatApp.activeChatPartner = user;
+                window.ChatApp.activeChatPartner = contact;
                 if (typeof populateContactInfo !== 'undefined' && contactInfoSidebar && contactInfoSidebar.classList.contains('active')) {
-                    populateContactInfo(user);
+                    populateContactInfo(contact);
                 }
                 
                 // Mark messages as read
-                if (user.unreadCount > 0) {
-                    window.ChatApp.markMessagesAsRead(user.id);
+                if (contact.unreadCount > 0) {
+                    window.ChatApp.markMessagesAsRead(contact.id);
                 }
                 
                 // Cancel edit mode if switching chats
@@ -310,13 +345,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    window.ChatApp.renderMessages = () => {
+    window.ChatApp.renderMessages = (preserveScroll = false) => {
         let activeChatPartner = window.ChatApp.activeChatPartner;
         if (!activeChatPartner || !chatMessages) return;
         
+        const scrollTopBefore = chatMessages.scrollTop;
+        
         const currentUser = window.ChatApp.getCurrentUser();
         const allUsers = window.ChatApp.getAllUsers();
-        activeChatPartner = allUsers.find(u => u.id === activeChatPartner.id) || activeChatPartner;
+        const allGroups = window.ChatApp.getGroups();
+        if (activeChatPartner.type === 'group') {
+            activeChatPartner = allGroups.find(g => g.id === activeChatPartner.id) || activeChatPartner;
+        } else {
+            activeChatPartner = allUsers.find(u => u.id === activeChatPartner.id) || activeChatPartner;
+        }
         window.ChatApp.activeChatPartner = activeChatPartner;
         
         // Mark messages as read if the chat is open
@@ -325,24 +367,33 @@ document.addEventListener('DOMContentLoaded', () => {
         if (chatPartnerName) chatPartnerName.textContent = activeChatPartner.name;
         if (chatPartnerStatus) {
             let statusText = 'Offline';
-            const isOnline = activeChatPartner.lastActive && (new Date() - new Date(activeChatPartner.lastActive)) < 2 * 60000;
-            
-            if (isOnline) {
-                statusText = 'Active now';
-                chatPartnerAvatar.classList.add('online');
-            } else {
+            if (activeChatPartner.type === 'group') {
                 chatPartnerAvatar.classList.remove('online');
-                if (activeChatPartner.lastActive) {
-                    const lastTime = new Date(activeChatPartner.lastActive);
-                    const diffMins = Math.floor((new Date() - lastTime) / 60000);
-                    if (diffMins < 60 && diffMins > 0) {
-                        statusText = `last seen ${diffMins} minutes ago`;
-                    } else {
-                        const isToday = new Date().toDateString() === lastTime.toDateString();
-                        statusText = `last seen ${isToday ? 'today at' : 'on'} ${window.ChatApp.formatTime(activeChatPartner.lastActive)}`;
-                    }
+                const members = allUsers.filter(u => activeChatPartner.members.includes(u.id));
+                const memberNames = members.map(u => u.id === currentUser.id ? 'You' : (u.name ? u.name.split(' ')[0] : 'Unknown'));
+                statusText = memberNames.join(', ');
+                if (statusText.length > 35) {
+                    statusText = statusText.substring(0, 32) + '...';
+                }
+            } else {
+                const isOnline = activeChatPartner.lastActive && (new Date() - new Date(activeChatPartner.lastActive)) < 2 * 60000;
+                if (isOnline) {
+                    statusText = 'Active now';
+                    chatPartnerAvatar.classList.add('online');
                 } else {
-                    statusText = 'last seen a long time ago';
+                    chatPartnerAvatar.classList.remove('online');
+                    if (activeChatPartner.lastActive) {
+                        const lastTime = new Date(activeChatPartner.lastActive);
+                        const diffMins = Math.floor((new Date() - lastTime) / 60000);
+                        if (diffMins < 60 && diffMins > 0) {
+                            statusText = `last seen ${diffMins} minutes ago`;
+                        } else {
+                            const isToday = new Date().toDateString() === lastTime.toDateString();
+                            statusText = `last seen ${isToday ? 'today at' : 'on'} ${window.ChatApp.formatTime(activeChatPartner.lastActive)}`;
+                        }
+                    } else {
+                        statusText = 'last seen a long time ago';
+                    }
                 }
             }
             chatPartnerStatus.textContent = statusText;
@@ -353,11 +404,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (chatHeaderActions) chatHeaderActions.style.display = 'flex';
 
         const messages = window.ChatApp.getAllMessages();
-        const chatHistory = messages.filter(m => 
-            ((m.senderId === currentUser.id && m.receiverId === activeChatPartner.id) ||
-            (m.senderId === activeChatPartner.id && m.receiverId === currentUser.id)) &&
-            (!m.deletedFor || !m.deletedFor.includes(currentUser.id))
-        );
+        let chatHistory;
+        if (activeChatPartner.type === 'group') {
+            chatHistory = messages.filter(m => 
+                m.receiverId === activeChatPartner.id &&
+                (!m.deletedFor || !m.deletedFor.includes(currentUser.id))
+            );
+        } else {
+            chatHistory = messages.filter(m => 
+                ((m.senderId === currentUser.id && m.receiverId === activeChatPartner.id) ||
+                (m.senderId === activeChatPartner.id && m.receiverId === currentUser.id)) &&
+                (!m.deletedFor || !m.deletedFor.includes(currentUser.id))
+            );
+        }
         
         chatMessages.innerHTML = '';
         
@@ -369,9 +428,10 @@ document.addEventListener('DOMContentLoaded', () => {
         chatHistory.forEach(msg => {
             const isSentByMe = msg.senderId === currentUser.id;
             const messageClass = isSentByMe ? 'sent' : 'received';
-            const userForMsg = isSentByMe ? currentUser : activeChatPartner;
+            const userForMsg = isSentByMe ? currentUser : window.ChatApp.getAllUsers().find(u => u.id === msg.senderId) || {name: 'Unknown'};
             
-            const avatarHtml = !isSentByMe ? window.ChatApp.getAvatarHtml(userForMsg, "message-avatar") : '';
+            const avatarHtml = (!isSentByMe && activeChatPartner.type !== 'group') ? window.ChatApp.getAvatarHtml(userForMsg, "message-avatar") : '';
+            const senderNameHtml = (!isSentByMe && activeChatPartner.type === 'group') ? `<div style="font-size: 0.75rem; color: var(--accent); font-weight: 500; margin-bottom: 2px;">${userForMsg.name}</div>` : '';
             
             const editedTag = msg.edited ? `<span style="font-size: 0.65rem; font-style: italic; opacity: 0.8; margin-left: 4px;">(edited)</span>` : '';
             
@@ -417,8 +477,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 reactionBadgesHtml += `</div>`;
             }
             
+            let isRead = false;
+            if (activeChatPartner.type === 'group') {
+                isRead = msg.readBy && msg.readBy.length > 1; // Sender is always in readBy
+            } else {
+                isRead = msg.read;
+            }
+            
             const readReceiptHtml = isSentByMe ? 
-                (msg.read ? `<span style="color: #34b7f1; margin-left: 4px; font-weight: bold; letter-spacing: -2px;">✓✓</span>` : 
+                (isRead ? `<span style="color: #34b7f1; margin-left: 4px; font-weight: bold; letter-spacing: -2px;">✓✓</span>` : 
                             `<span style="color: var(--text-secondary); margin-left: 4px; font-weight: bold;">✓</span>`) 
                 : '';
             
@@ -430,6 +497,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="message-content">
                         <div style="display: flex; align-items: center;">
                             <div class="message-bubble">
+                                ${senderNameHtml}
                                 ${messageBodyHtml}
                                 ${reactionBadgesHtml}
                             </div>
@@ -441,7 +509,27 @@ document.addEventListener('DOMContentLoaded', () => {
             chatMessages.insertAdjacentHTML('beforeend', messageHtml);
         });
         
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        if (preserveScroll) {
+            chatMessages.scrollTop = scrollTopBefore;
+        } else {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        const chatInputArea = document.querySelector('.chat-input-area');
+        let isBlocked = false;
+        if (activeChatPartner.type !== 'group') {
+            const amIBlocked = activeChatPartner.blockedUsers && activeChatPartner.blockedUsers.includes(currentUser.id);
+            const didIBlock = currentUser.blockedUsers && currentUser.blockedUsers.includes(activeChatPartner.id);
+            isBlocked = amIBlocked || didIBlock;
+        }
+        
+        if (isBlocked) {
+            if (chatInputArea) chatInputArea.style.display = 'none';
+            chatMessages.insertAdjacentHTML('beforeend', `<div style="text-align: center; color: var(--danger); margin-top: 1rem; padding: 10px; background: rgba(255,0,0,0.1); border-radius: 8px; font-weight: 500;">You cannot reply to this conversation.</div>`);
+        } else {
+            if (chatInputArea) chatInputArea.style.display = 'flex';
+        }
+        
         bindMessageActions();
     };
     
@@ -470,7 +558,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             selectedMessages.add(msgId);
         }
-        window.ChatApp.renderMessages();
+        window.ChatApp.renderMessages(true);
     };
 
     const showReactionPicker = (e, msgId) => {
@@ -551,7 +639,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (closeSelectionBtn) {
         closeSelectionBtn.addEventListener('click', () => {
             selectedMessages.clear();
-            window.ChatApp.renderMessages();
+            window.ChatApp.renderMessages(true);
         });
     }
 
@@ -563,7 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
             navigator.clipboard.writeText(textToCopy).then(() => {
                 window.showToast('Copied to clipboard', 'success');
                 selectedMessages.clear();
-                window.ChatApp.renderMessages();
+                window.ChatApp.renderMessages(true);
             });
         });
     }
@@ -584,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (editBanner) editBanner.style.display = 'flex';
                 }
                 selectedMessages.clear();
-                window.ChatApp.renderMessages();
+                window.ChatApp.renderMessages(true);
             }
         });
     }
@@ -614,7 +702,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(deleteModal) deleteModal.classList.remove('active');
             selectedMessages.clear();
             updateSelectionUI();
-            window.ChatApp.renderMessages();
+            window.ChatApp.renderMessages(true);
         });
     }
 
@@ -624,7 +712,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(deleteModal) deleteModal.classList.remove('active');
             selectedMessages.clear();
             updateSelectionUI();
-            window.ChatApp.renderMessages();
+            window.ChatApp.renderMessages(true);
         });
     }
 
@@ -649,7 +737,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(forwardModal) forwardModal.classList.remove('active');
                     selectedMessages.clear();
                     updateSelectionUI();
-                    window.ChatApp.renderMessages();
+                    window.ChatApp.renderMessages(true);
                     window.showToast('Messages forwarded', 'success');
                 }
             });
@@ -767,7 +855,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (chatInput) chatInput.focus();
                 }
                 selectedMessages.clear();
-                window.ChatApp.renderMessages();
+                window.ChatApp.renderMessages(true);
             }
         });
     }
@@ -914,23 +1002,156 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Right Sidebar Info
     const populateContactInfo = (user) => {
-        window.ChatApp.updateAvatarElement(contactInfoAvatar, user);
-        contactInfoName.textContent = user.name;
-        contactInfoUsername.textContent = user.username || '@username';
-        contactInfoBio.textContent = user.bio || 'No bio available.';
+        if (contactInfoAvatar) window.ChatApp.updateAvatarElement(contactInfoAvatar, user);
+        if (contactInfoName) contactInfoName.textContent = user.name;
+        if (contactInfoUsername) contactInfoUsername.textContent = user.username || '@username';
+        if (contactInfoBio) contactInfoBio.textContent = user.bio || 'No bio available.';
+    };
+
+    const populateGroupInfo = (group) => {
+        if (groupInfoName) groupInfoName.textContent = group.name;
+        if (groupInfoMembersCount) groupInfoMembersCount.textContent = `${group.members.length} members`;
+        
+        const allUsers = window.ChatApp.getAllUsers();
+        const currentUser = window.ChatApp.getCurrentUser();
+        const isAdmin = group.admins && group.admins.includes(currentUser.id);
+        
+        if (btnAddMember) {
+            btnAddMember.style.display = isAdmin ? 'block' : 'none';
+        }
+        
+        if (groupMembersList) {
+            groupMembersList.innerHTML = '';
+            
+            // Sort members: You first, then Admins, then regular members
+            const sortedMembers = [...group.members].sort((a, b) => {
+                if (a === currentUser.id) return -1;
+                if (b === currentUser.id) return 1;
+                const aAdmin = group.admins && group.admins.includes(a);
+                const bAdmin = group.admins && group.admins.includes(b);
+                if (aAdmin && !bAdmin) return -1;
+                if (!aAdmin && bAdmin) return 1;
+                return 0;
+            });
+            
+            sortedMembers.forEach(memberId => {
+                const user = allUsers.find(u => u.id === memberId);
+                if (!user) return;
+                
+                const isMe = memberId === currentUser.id;
+                const isMemberAdmin = group.admins && group.admins.includes(memberId);
+                const isOwner = group.ownerId === memberId;
+                
+                let roleHtml = '';
+                if (isOwner) roleHtml = '<span style="font-size: 0.7rem; background: var(--accent); color: white; padding: 2px 6px; border-radius: 4px; font-weight: 500;">Owner</span>';
+                else if (isMemberAdmin) roleHtml = '<span style="font-size: 0.7rem; background: rgba(0,0,0,0.3); color: var(--text-primary); padding: 2px 6px; border-radius: 4px; font-weight: 500;">Admin</span>';
+                
+                let optionsHtml = '';
+                if (isAdmin && !isMe) {
+                    // Cannot modify owner
+                    if (!isOwner) {
+                        optionsHtml = `
+                        <div class="dropdown" style="position: relative;">
+                            <button class="btn-icon group-member-options-btn" data-id="${memberId}" style="width: 24px; height: 24px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+                            </button>
+                        </div>`;
+                    }
+                }
+                
+                const el = document.createElement('div');
+                el.style.display = 'flex';
+                el.style.alignItems = 'center';
+                el.style.gap = '10px';
+                el.style.padding = '8px';
+                el.style.background = 'rgba(255,255,255,0.05)';
+                el.style.borderRadius = '8px';
+                
+                el.innerHTML = `
+                    ${window.ChatApp.getAvatarHtml(user)}
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${isMe ? 'You' : user.name}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.8rem;">${user.username || ''}</div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        ${roleHtml}
+                        ${optionsHtml}
+                    </div>
+                `;
+                
+                const btn = el.querySelector('.group-member-options-btn');
+                if (btn) {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        
+                        document.querySelectorAll('.group-member-dropdown-menu').forEach(m => m.remove());
+                        
+                        const menu = document.createElement('div');
+                        menu.className = 'group-member-dropdown-menu dropdown-menu show';
+                        menu.style.position = 'absolute';
+                        menu.style.right = '0';
+                        menu.style.top = '100%';
+                        menu.style.zIndex = '1000';
+                        
+                        let makeAdminText = isMemberAdmin ? 'Demote to Member' : 'Make Admin';
+                        
+                        menu.innerHTML = `
+                            <ul>
+                                <li class="action-toggle-admin" style="padding: 0.5rem 1rem; cursor: pointer;">${makeAdminText}</li>
+                                <li class="action-remove-member" style="color: var(--danger); padding: 0.5rem 1rem; cursor: pointer;">Remove from Group</li>
+                            </ul>
+                        `;
+                        
+                        btn.parentElement.appendChild(menu);
+                        
+                        menu.querySelector('.action-toggle-admin').addEventListener('click', async () => {
+                            await window.ChatApp.setAdminRole(group.id, memberId, !isMemberAdmin);
+                            menu.remove();
+                        });
+                        
+                        menu.querySelector('.action-remove-member').addEventListener('click', async () => {
+                            if (confirm(`Remove ${user.name} from group?`)) {
+                                await window.ChatApp.removeMember(group.id, memberId);
+                            }
+                            menu.remove();
+                        });
+                        
+                        const closeMenu = () => {
+                            if (menu.parentElement) menu.remove();
+                            document.removeEventListener('click', closeMenu);
+                        };
+                        setTimeout(() => document.addEventListener('click', closeMenu), 10);
+                    });
+                }
+                
+                groupMembersList.appendChild(el);
+            });
+        }
     };
 
     if (chatPartnerInfoBtn) {
         chatPartnerInfoBtn.addEventListener('click', () => {
             if (window.ChatApp.activeChatPartner) {
-                populateContactInfo(window.ChatApp.activeChatPartner);
-                contactInfoSidebar.classList.add('active');
+                if (window.ChatApp.activeChatPartner.type === 'group') {
+                    populateGroupInfo(window.ChatApp.activeChatPartner);
+                    if (groupInfoSidebar) groupInfoSidebar.classList.add('active');
+                    if (contactInfoSidebar) contactInfoSidebar.classList.remove('active');
+                } else {
+                    populateContactInfo(window.ChatApp.activeChatPartner);
+                    if (contactInfoSidebar) contactInfoSidebar.classList.add('active');
+                    if (groupInfoSidebar) groupInfoSidebar.classList.remove('active');
+                }
             }
         });
     }
     if (closeContactInfoBtn) {
         closeContactInfoBtn.addEventListener('click', () => {
-            contactInfoSidebar.classList.remove('active');
+            if (contactInfoSidebar) contactInfoSidebar.classList.remove('active');
+        });
+    }
+    if (closeGroupInfoBtn) {
+        closeGroupInfoBtn.addEventListener('click', () => {
+            if (groupInfoSidebar) groupInfoSidebar.classList.remove('active');
         });
     }
 
@@ -951,6 +1172,82 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
     };
 
+    // --- Group Actions ---
+    if (newGroupBtn) {
+        newGroupBtn.addEventListener('click', () => {
+            const otherUsers = window.ChatApp.getOtherUsers();
+            if (newGroupContactsList) {
+                newGroupContactsList.innerHTML = '';
+                otherUsers.forEach(user => {
+                    const label = document.createElement('label');
+                    label.style.display = 'flex';
+                    label.style.alignItems = 'center';
+                    label.style.gap = '10px';
+                    label.style.padding = '8px 0';
+                    label.style.cursor = 'pointer';
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.value = user.id;
+                    checkbox.className = 'group-member-checkbox';
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = user.name;
+                    
+                    label.appendChild(checkbox);
+                    label.appendChild(nameSpan);
+                    newGroupContactsList.appendChild(label);
+                });
+            }
+            if (newGroupNameInput) newGroupNameInput.value = '';
+            if (newGroupModal) newGroupModal.classList.add('active');
+        });
+    }
+    
+    if (closeNewGroupModalBtn) {
+        closeNewGroupModalBtn.addEventListener('click', () => {
+            if (newGroupModal) newGroupModal.classList.remove('active');
+        });
+    }
+    
+    if (btnCreateGroup) {
+        btnCreateGroup.addEventListener('click', async () => {
+            const name = newGroupNameInput ? newGroupNameInput.value.trim() : '';
+            if (!name) {
+                window.showToast("Group name is required", "error");
+                return;
+            }
+            
+            const selectedCheckboxes = document.querySelectorAll('.group-member-checkbox:checked');
+            const memberIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+            
+            if (memberIds.length === 0) {
+                window.showToast("Select at least one contact", "error");
+                return;
+            }
+            
+            await window.ChatApp.createGroup(name, '', memberIds);
+            if (newGroupModal) newGroupModal.classList.remove('active');
+            window.showToast("Group created successfully!", "success");
+        });
+    }
+
+    if (actionLeaveGroup) {
+        actionLeaveGroup.addEventListener('click', async () => {
+            if (window.ChatApp.activeChatPartner && window.ChatApp.activeChatPartner.type === 'group') {
+                if (confirm('Are you sure you want to leave this group?')) {
+                    await window.ChatApp.leaveGroup(window.ChatApp.activeChatPartner.id);
+                    if (chatOptionsMenu) chatOptionsMenu.classList.remove('show');
+                    window.ChatApp.activeChatPartner = null;
+                    if (chatMessages) chatMessages.innerHTML = `<div style="text-align: center; color: var(--text-secondary); margin-top: 2rem;">Please select a contact from the sidebar to start chatting.</div>`;
+                    if (chatPartnerName) chatPartnerName.textContent = 'Select a contact';
+                    if (chatPartnerStatus) chatPartnerStatus.textContent = '';
+                    window.ChatApp.renderContacts();
+                }
+            }
+        });
+    }
+
     headerActionBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             window.showToast('Coming Soon', 'default');
@@ -961,10 +1258,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (chatOptionsBtn && chatOptionsMenu) {
         chatOptionsBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (window.ChatApp.activeChatPartner && actionBlock) {
-                const currentUser = window.ChatApp.getCurrentUser();
-                const isBlocked = currentUser && currentUser.blockedUsers && currentUser.blockedUsers.includes(window.ChatApp.activeChatPartner.id);
-                actionBlock.textContent = isBlocked ? 'Unblock' : 'Block';
+            if (window.ChatApp.activeChatPartner) {
+                if (window.ChatApp.activeChatPartner.type === 'group') {
+                    if (actionBlock) actionBlock.style.display = 'none';
+                    if (actionLeaveGroup) actionLeaveGroup.style.display = 'block';
+                } else {
+                    if (actionBlock) {
+                        actionBlock.style.display = 'block';
+                        const currentUser = window.ChatApp.getCurrentUser();
+                        const isBlocked = currentUser && currentUser.blockedUsers && currentUser.blockedUsers.includes(window.ChatApp.activeChatPartner.id);
+                        actionBlock.textContent = isBlocked ? 'Unblock' : 'Block';
+                    }
+                    if (actionLeaveGroup) actionLeaveGroup.style.display = 'none';
+                }
             }
             chatOptionsMenu.classList.toggle('show');
         });

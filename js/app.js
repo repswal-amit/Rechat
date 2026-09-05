@@ -104,6 +104,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.ChatApp.renderContacts) window.ChatApp.renderContacts();
     });
 
+    // 1.2 Groups Listener
+    const qGroups = query(collection(db, "groups"));
+    onSnapshot(qGroups, (snapshot) => {
+        const groups = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            // Only add group if current user is a member
+            if (data.members && data.members.includes(currentUser.id)) {
+                groups.push({ ...data, id: doc.id, type: 'group' });
+            }
+        });
+        window.ChatApp._groups = groups;
+        if (window.ChatApp.renderContacts) window.ChatApp.renderContacts();
+    });
+
         // 1.5 Chat Settings Listener
     const qSettings = query(collection(db, "chat_settings"));
     onSnapshot(qSettings, (snapshot) => {

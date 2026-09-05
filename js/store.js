@@ -7,6 +7,7 @@ window.ChatApp = window.ChatApp || {};
 // Local cache populated by app.js (onSnapshot)
 window.ChatApp._users = [];
 window.ChatApp._messages = [];
+window.ChatApp._groups = [];
 
 window.ChatApp = {
     ...window.ChatApp,
@@ -31,20 +32,113 @@ window.ChatApp = {
         return window.ChatApp._users.filter(u => u.id !== currentUser.id);
     },
     
+    // Groups
+    getGroups: () => window.ChatApp._groups || [],
+    createGroup: async (name, description, memberIds) => {
+        const currentUser = window.ChatApp.getCurrentUser();
+        if (!currentUser) return;
+        try {
+            // Include creator in members and admins
+            const allMembers = Array.from(new Set([...memberIds, currentUser.id]));
+            const newGroup = {
+                name: name,
+                description: description || '',
+                avatarUrl: null,
+                createdBy: currentUser.id,
+                admins: [currentUser.id],
+                members: allMembers,
+                createdAt: new Date().toISOString(),
+                type: 'group'
+            };
+            const docRef = await addDoc(collection(db, "groups"), newGroup);
+            return docRef.id;
+        } catch (e) {
+            console.error("Error creating group", e);
+        }
+    },
+    leaveGroup: async (groupId) => {
+        const currentUser = window.ChatApp.getCurrentUser();
+        if (!currentUser) return;
+        try {
+            const group = window.ChatApp._groups.find(g => g.id === groupId);
+            if (!group) return;
+            const newMembers = group.members.filter(id => id !== currentUser.id);
+            const newAdmins = group.admins.filter(id => id !== currentUser.id);
+            await updateDoc(doc(db, "groups", groupId), {
+                members: newMembers,
+                admins: newAdmins
+            });
+        } catch (e) {
+            console.error("Error leaving group", e);
+        }
+    },
+    addMembers: async (groupId, newMemberIds) => {
+        try {
+            const group = window.ChatApp._groups.find(g => g.id === groupId);
+            if (!group) return;
+            const updatedMembers = Array.from(new Set([...group.members, ...newMemberIds]));
+            await updateDoc(doc(db, "groups", groupId), {
+                members: updatedMembers
+            });
+        } catch (e) {
+            console.error("Error adding members", e);
+        }
+    },
+    removeMember: async (groupId, memberIdToRemove) => {
+        try {
+            const group = window.ChatApp._groups.find(g => g.id === groupId);
+            if (!group) return;
+            const updatedMembers = group.members.filter(id => id !== memberIdToRemove);
+            const updatedAdmins = group.admins.filter(id => id !== memberIdToRemove);
+            await updateDoc(doc(db, "groups", groupId), {
+                members: updatedMembers,
+                admins: updatedAdmins
+            });
+        } catch (e) {
+            console.error("Error removing member", e);
+        }
+    },
+    setAdminRole: async (groupId, userId, isAdmin) => {
+        try {
+            const group = window.ChatApp._groups.find(g => g.id === groupId);
+            if (!group) return;
+            let updatedAdmins = [...(group.admins || [])];
+            if (isAdmin) {
+                if (!updatedAdmins.includes(userId)) updatedAdmins.push(userId);
+            } else {
+                updatedAdmins = updatedAdmins.filter(id => id !== userId);
+            }
+            await updateDoc(doc(db, "groups", groupId), {
+                admins: updatedAdmins
+            });
+        } catch (e) {
+            console.error("Error setting admin role", e);
+        }
+    },
+    
     // Messages
     getAllMessages: () => window.ChatApp._messages,
     saveMessage: async (receiverId, text, imageUrl = null, replyTo = null) => {
         const currentUser = window.ChatApp.getCurrentUser();
         
-        // System-wide block check
-        if (currentUser.blockedUsers && currentUser.blockedUsers.includes(receiverId)) {
-            if (window.showToast) window.showToast("You blocked this contact. Unblock to send messages.", "error");
-            return;
-        }
-        const receiverUser = window.ChatApp._users.find(u => u.id === receiverId);
-        if (receiverUser && receiverUser.blockedUsers && receiverUser.blockedUsers.includes(currentUser.id)) {
-            if (window.showToast) window.showToast("Message failed to send.", "error");
-            return;
+        const group = window.ChatApp._groups.find(g => g.id === receiverId);
+        
+        if (group) {
+            if (!group.members.includes(currentUser.id)) {
+                if (window.showToast) window.showToast("You are not a member of this group.", "error");
+                return;
+            }
+        } else {
+            // System-wide block check
+            if (currentUser.blockedUsers && currentUser.blockedUsers.includes(receiverId)) {
+                if (window.showToast) window.showToast("You blocked this contact. Unblock to send messages.", "error");
+                return;
+            }
+            const receiverUser = window.ChatApp._users.find(u => u.id === receiverId);
+            if (receiverUser && receiverUser.blockedUsers && receiverUser.blockedUsers.includes(currentUser.id)) {
+                if (window.showToast) window.showToast("Message failed to send.", "error");
+                return;
+            }
         }
 
         const newMessage = {
@@ -52,8 +146,10 @@ window.ChatApp = {
             receiverId: receiverId,
             text: text,
             timestamp: new Date().toISOString(),
-            read: false
+            read: false,
+            readBy: [currentUser.id]
         };
+        if (group) newMessage.isGroup = true;
         if (imageUrl) newMessage.imageUrl = imageUrl;
         if (replyTo) newMessage.replyTo = replyTo;
         try {
@@ -63,20 +159,33 @@ window.ChatApp = {
         }
     },
     
-    markMessagesAsRead: async (senderId) => {
+    markMessagesAsRead: async (senderOrGroupId) => {
         const currentUser = window.ChatApp.getCurrentUser();
         if (!currentUser) return;
         
         try {
-            const toUpdate = window.ChatApp._messages.filter(
-                m => m.senderId === senderId && m.receiverId === currentUser.id && !m.read
-            );
+            const group = window.ChatApp._groups.find(g => g.id === senderOrGroupId);
+            let toUpdate = [];
+            
+            if (group) {
+                toUpdate = window.ChatApp._messages.filter(
+                    m => m.receiverId === senderOrGroupId && (!m.readBy || !m.readBy.includes(currentUser.id))
+                );
+            } else {
+                toUpdate = window.ChatApp._messages.filter(
+                    m => m.senderId === senderOrGroupId && m.receiverId === currentUser.id && !m.read
+                );
+            }
             
             if (toUpdate.length > 0) {
                 const batch = writeBatch(db);
                 toUpdate.forEach(m => {
                     const msgRef = doc(db, "messages", m.id);
-                    batch.update(msgRef, { read: true });
+                    if (group) {
+                        batch.update(msgRef, { readBy: arrayUnion(currentUser.id) });
+                    } else {
+                        batch.update(msgRef, { read: true });
+                    }
                 });
                 await batch.commit();
             }
@@ -272,22 +381,35 @@ window.ChatApp = {
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     },
     
-    getAvatarHtml: (user, classes = "") => {
-        if (!user) return `<div class="avatar ${classes}">?</div>`;
-        if (user.profilePic) {
-            return `<div class="avatar ${classes}" style="background-image: url('${user.profilePic}'); color: transparent;"></div>`;
+    getAvatarHtml: (userOrGroup, classes = "") => {
+        if (!userOrGroup) return `<div class="avatar ${classes}">?</div>`;
+        if (userOrGroup.type === 'group') {
+            if (userOrGroup.avatarUrl) {
+                return `<div class="avatar ${classes}" style="background-image: url('${userOrGroup.avatarUrl}'); color: transparent;"></div>`;
+            }
+            return `<div class="avatar ${classes} group-avatar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>`;
         }
-        return `<div class="avatar ${classes}">${user.name ? user.name.charAt(0).toUpperCase() : '?'}</div>`;
+        if (userOrGroup.profilePic) {
+            return `<div class="avatar ${classes}" style="background-image: url('${userOrGroup.profilePic}'); color: transparent;"></div>`;
+        }
+        return `<div class="avatar ${classes}">${userOrGroup.name ? userOrGroup.name.charAt(0).toUpperCase() : '?'}</div>`;
     },
     
-    updateAvatarElement: (el, user) => {
-        if (!el || !user) return;
-        if (user.profilePic) {
-            el.style.backgroundImage = `url('${user.profilePic}')`;
+    updateAvatarElement: (el, userOrGroup) => {
+        if (!el || !userOrGroup) return;
+        if (userOrGroup.type === 'group' && !userOrGroup.avatarUrl) {
+            el.style.backgroundImage = 'none';
+            el.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>`;
+            return;
+        }
+        
+        const pic = userOrGroup.type === 'group' ? userOrGroup.avatarUrl : userOrGroup.profilePic;
+        if (pic) {
+            el.style.backgroundImage = `url('${pic}')`;
             el.textContent = '';
         } else {
             el.style.backgroundImage = 'none';
-            el.textContent = user.name ? user.name.charAt(0).toUpperCase() : '?';
+            el.textContent = userOrGroup.name ? userOrGroup.name.charAt(0).toUpperCase() : '?';
         }
     }
 };
